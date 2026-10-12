@@ -1,0 +1,27 @@
+name: Validate Agent Skills
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate all skills and syntax
+        run: python3 scripts/validate_skills.py
+      - name: Smoke test installation and backups
+        run: python3 scripts/test_install.py
+      - name: Review static portability leads
+        run: |
+          python3 skills/skill-reviewer/scripts/audit_skill.py skills/video-to-knowledge
+          python3 skills/skill-reviewer/scripts/audit_skill.py skills/skill-reviewer

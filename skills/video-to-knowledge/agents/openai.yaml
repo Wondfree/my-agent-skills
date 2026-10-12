@@ -1,0 +1,3 @@
+interface:
+  display_name: "Video to Knowledge"
+  short_description: "视频下载转写、AI 校对、画面核验与结构化知识整理"

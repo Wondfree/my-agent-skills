@@ -1,0 +1,40 @@
+# Local editor, operating system and test artifacts
+.DS_Store
+**/.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+*.log
+*.tmp
+*.part
+
+# Local credentials and environment state: do not commit
+.env
+.env.*
+*.pem
+*.p12
+*.pfx
+*.key
+id_rsa
+id_ed25519
+**/.ssh/
+**/.aws/
+**/.config/
+.secrets/
+credentials.json
+
+# User data and generated video/audio/transcripts are not source code
+video.mp4
+video*.mkv
+audio.wav
+audio.m4a
+transcript*.txt
+transcript*.json
+transcript*.srt
+*.mp4
+*.mov
+*.mkv
+*.webm

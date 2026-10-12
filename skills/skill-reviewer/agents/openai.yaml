@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Reviewer"
+  short_description: "审查 Skill 的可移植性、触发边界和执行质量"
+  default_prompt: "使用 $skill-reviewer 审查指定的 Skill，列出可复现的问题和测试结果；仅审查，不直接修改。"
