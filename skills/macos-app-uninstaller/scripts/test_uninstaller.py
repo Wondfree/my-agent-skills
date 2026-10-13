@@ -177,7 +177,7 @@ class TrashSafetyTests(unittest.TestCase):
         self.save()
         self.args.confirm = self.plan["plan_id"]
         with mock.patch.object(module.subprocess, "run") as backend:
-            with self.assertRaisesRegex(ValueError, "review-only"):
+            with self.assertRaisesRegex(ValueError, "Symlink|review-only"):
                 self.call_trash()
             backend.assert_not_called()
 

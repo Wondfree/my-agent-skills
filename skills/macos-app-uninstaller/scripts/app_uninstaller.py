@@ -14,6 +14,8 @@ import subprocess
 import sys
 import time
 
+from deletion_guard import assert_safe_path, format_manual_command
+
 SCHEMA = 1
 USER_AREAS = {
     "Application Support": "app-data",
@@ -38,6 +40,29 @@ REVIEW_ONLY = {"shared-container", "launch-agent", "system-launch-agent",
 TRAILING = (".plist", ".savedState")
 MAX_FILES_PER_TARGET = 20_000
 MAX_SECONDS_PER_TARGET = 3.0
+UUID_RE = re.compile(r"[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}")
+
+
+def container_identity(path: Path) -> str | None:
+    """Read macOS sandbox ownership metadata, not the UUID or folder label."""
+    if not UUID_RE.fullmatch(path.name):
+        return None
+    try:
+        result = subprocess.run(
+            ["/usr/bin/xattr", "-p", "com.apple.containermanager.identifier", str(path)],
+            capture_output=True, text=True, timeout=2, check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def owned_uuid_container(path: Path, bundle_id: str, home: Path) -> bool:
+    if path.parent != home / "Library" / "Containers":
+        return False
+    found = container_identity(path)
+    return bool(found and (found.casefold() == bundle_id.casefold()
+                or found.casefold().startswith(bundle_id.casefold() + ".")))
 
 
 def normalized(text: str) -> str:
@@ -45,18 +70,25 @@ def normalized(text: str) -> str:
 
 
 def identity(path: Path) -> dict | None:
-    info = path / "Contents" / "Info.plist"
-    try:
-        with info.open("rb") as fp:
-            data = plistlib.load(fp)
-        bundle = data.get("CFBundleIdentifier")
-        if not isinstance(bundle, str) or not bundle:
-            return None
-        return {"path": str(path), "bundle_id": bundle,
-                "name": path.stem, "display_name": data.get("CFBundleDisplayName")
-                or data.get("CFBundleName") or path.stem}
-    except (OSError, ValueError, TypeError, plistlib.InvalidFileException):
-        return None
+    # macOS apps may wrap iOS bundles as Wrapper/<actual app>.app/Info.plist.
+    infos = [path / "Contents" / "Info.plist", path / "Info.plist"]
+    wrapper = path / "Wrapper"
+    if wrapper.is_dir():
+        infos.extend(p / "Info.plist" for p in sorted(wrapper.glob("*.app"))
+                     if p.is_dir() and not p.is_symlink())
+    for info in infos:
+        try:
+            with info.open("rb") as fp:
+                data = plistlib.load(fp)
+            bundle = data.get("CFBundleIdentifier")
+            if not isinstance(bundle, str) or not bundle:
+                continue
+            return {"path": str(path), "bundle_id": bundle,
+                    "name": path.stem, "display_name": data.get("CFBundleDisplayName")
+                    or data.get("CFBundleName") or path.stem}
+        except (OSError, ValueError, TypeError, plistlib.InvalidFileException):
+            continue
+    return None
 
 
 def installed_apps(roots: list[Path]) -> list[dict]:
@@ -216,6 +248,8 @@ def allowed_source(path: Path, category: str, home: Path) -> bool:
         return (path.suffix.lower() == ".app"
                 and (path.parent == Path("/Applications") or path.parent == home / "Applications")
                 and path != Path("/Applications"))
+    if category == "sandbox" and UUID_RE.fullmatch(path.name):
+        return path.parent == home / "Library" / "Containers"
     if category == "temp-cache":
         parts = path.parts
         return (len(parts) == 8 and parts[:4] == ("/", "private", "var", "folders")
@@ -287,6 +321,20 @@ def scan(args: argparse.Namespace) -> int:
             if match:
                 add(entry, category, *match)
 
+    # iOS-on-Mac applications and extensions have opaque UUID directory names.
+    # Accept only an exact Bundle ID (or extension prefix) from macOS xattr.
+    uuid_root = home / "Library" / "Containers"
+    if uuid_root.is_dir():
+        try:
+            for entry in sorted(uuid_root.iterdir(), key=lambda p: p.name):
+                if not entry.is_dir() or entry.is_symlink():
+                    continue
+                if owned_uuid_container(entry, bundle, home):
+                    add(entry, "sandbox", "high",
+                        "macOS container manager: " + (container_identity(entry) or ""))
+        except OSError as ex:
+            warnings.append("Cannot enumerate sandbox containers: " + str(ex))
+
     for dirname, category in SYSTEM_AREAS.items():
         root = Path(dirname)
         if not root.is_dir():
@@ -357,7 +405,8 @@ def trash(args: argparse.Namespace) -> int:
         if ident not in items:
             raise ValueError("Unknown selected ID: " + str(ident))
         item = items[ident]
-        path = Path(item["path"])
+        path = assert_safe_path(item["path"], item["category"], home,
+                                plan["app"]["bundle_id"])
         if item["confidence"] != "high" or not allowed_source(path, item["category"], home):
             raise ValueError("Refusing review-only or unapproved location: " + str(path))
         if not path.exists():
@@ -376,10 +425,14 @@ def trash(args: argparse.Namespace) -> int:
             raise ValueError("Source not owned by current user, rescan: " + str(path))
         if item["category"] != "app":
             aliases = [plan["app"].get("name") or "", plan["app"].get("display_name") or ""]
-            evidence = residue_match(path.name, plan["app"]["bundle_id"], aliases,
-                                     item["category"])
-            if evidence is None or evidence[0] != "high":
-                raise ValueError("Target name no longer matches application identity: " + str(path))
+            if item["category"] == "sandbox" and UUID_RE.fullmatch(path.name):
+                if not owned_uuid_container(path, plan["app"]["bundle_id"], home):
+                    raise ValueError("Sandbox ownership changed: " + str(path))
+            else:
+                evidence = residue_match(path.name, plan["app"]["bundle_id"], aliases,
+                                         item["category"])
+                if evidence is None or evidence[0] != "high":
+                    raise ValueError("Target name no longer matches application identity: " + str(path))
         if item["category"] == "app":
             found = identity(path)
             if not found or found["bundle_id"] != plan["app"]["bundle_id"]:
@@ -394,6 +447,77 @@ def trash(args: argparse.Namespace) -> int:
     return result.returncode
 
 
+def manual_preview(args: argparse.Namespace) -> int:
+    """Emit commands for human review ONLY; never execute deletion."""
+    home = Path.home()
+    plan = json.loads(Path(args.manifest).expanduser().read_text(encoding="utf-8"))
+    if plan.get("schema") != SCHEMA or plan_digest(plan) != plan.get("plan_id"):
+        raise ValueError("Invalid or changed manifest; rescan")
+    if args.confirm != plan["plan_id"]:
+        raise ValueError("Confirmation ID mismatch; obtain exact-path user approval")
+    bundle = plan["app"]["bundle_id"]
+    if bundle.casefold().startswith("com.apple."):
+        raise ValueError("Apple system bundles are excluded from manual commands")
+    if not re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*)*", args.ids):
+        raise ValueError("Invalid selected IDs")
+    selected = [int(v) for v in args.ids.split(",")]
+    if len(selected) != len(set(selected)):
+        raise ValueError("Repeated ID is not allowed")
+    items = {i["id"]: i for i in plan["items"]}
+    checked = []
+    for ident in selected:
+        if ident not in items:
+            raise ValueError("Unrecognized manifest ID: " + str(ident))
+        item = items[ident]
+        category = item["category"]
+        path = assert_safe_path(item["path"], category, home, bundle)
+        # Allow a root-owned installed app as a *manual* case only after
+        # validating its actual Info.plist. Review-only resources otherwise
+        # require investigation and cannot yield deletion commands.
+        review_app = (category == "app" and item["confidence"] == "review"
+                      and plan["app"].get("path") == str(path))
+        if item["confidence"] != "high" and not review_app:
+            raise ValueError("Review-only or uncertain target refused: " + str(path))
+        if item.get("truncated"):
+            raise ValueError("Incomplete target inventory; cannot verify: " + str(path))
+        stat = path.lstat()
+        if stat.st_uid != item["owner_uid"]:
+            raise ValueError("Owner changed: " + str(path))
+        if stat.st_uid != os.getuid() and not (category == "app" and stat.st_uid == 0):
+            raise ValueError("User does not own target: " + str(path))
+        if (stat.st_dev, stat.st_ino, stat.st_mtime_ns) != (
+                item["device"], item["inode"], item["mtime_ns"]):
+            raise ValueError("Target changed since scan: " + str(path))
+        now = file_summary(path)
+        if now["truncated"] or any(now.get(k) != item.get(k)
+                                  for k in ("fingerprint", "bytes", "files", "directories")):
+            raise ValueError("Target inventory changed or incomplete: " + str(path))
+        if category == "app":
+            app_info = identity(path)
+            if not app_info or app_info["bundle_id"].casefold() != bundle.casefold():
+                raise ValueError("App identity does not match target: " + str(path))
+            if plan["app"].get("path") != str(path):
+                raise ValueError("App target not present in manifest: " + str(path))
+        elif category == "sandbox" and UUID_RE.fullmatch(path.name):
+            if not owned_uuid_container(path, bundle, home):
+                raise ValueError("Sandbox identity mismatch: " + str(path))
+        else:
+            aliases = [plan["app"].get("name") or "", plan["app"].get("display_name") or ""]
+            evidence = residue_match(path.name, bundle, aliases, category)
+            if evidence is None or evidence[0] != "high":
+                raise ValueError("Target name does not establish ownership: " + str(path))
+        checked.append(path)
+    # Output is atomic: not a single deletion command is printed if any item
+    # fails checks. This command NEVER invokes sudo or a shell.
+    print("WARNING: The following commands permanently remove files (no Trash).",
+          file=sys.stderr)
+    print("Recheck immediately before user execution; permissions may still block sudo.",
+          file=sys.stderr)
+    for path in checked:
+        print(format_manual_command(path))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -406,11 +530,19 @@ def main() -> int:
     removal.add_argument("--manifest", required=True)
     removal.add_argument("--confirm", required=True, help="Exact plan ID, only after human approval")
     removal.add_argument("--ids", required=True, help="Comma-separated IDs explicitly approved by user")
+    manual = commands.add_parser("manual-preview", help="Print independently validated user-run commands; never execute")
+    manual.add_argument("--manifest", required=True)
+    manual.add_argument("--confirm", required=True, help="Exact scan plan ID after user approved paths")
+    manual.add_argument("--ids", required=True, help="Approved manifest item IDs")
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("macOS only")
     try:
-        return scan(args) if args.command == "scan" else trash(args)
+        if args.command == "scan":
+            return scan(args)
+        if args.command == "trash":
+            return trash(args)
+        return manual_preview(args)
     except (ValueError, OSError, KeyError, RuntimeError) as ex:
         print("REFUSED: " + str(ex), file=sys.stderr)
         return 2
