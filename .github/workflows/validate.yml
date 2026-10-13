@@ -21,7 +21,10 @@ jobs:
         run: python3 scripts/validate_skills.py
       - name: Smoke test installation and backups
         run: python3 scripts/test_install.py
+      - name: Test safe macOS uninstall planning (mocked Trash)
+        run: python3 -B skills/macos-app-uninstaller/scripts/test_uninstaller.py
       - name: Review static portability leads
         run: |
           python3 skills/skill-reviewer/scripts/audit_skill.py skills/video-to-knowledge
           python3 skills/skill-reviewer/scripts/audit_skill.py skills/skill-reviewer
+          python3 skills/skill-reviewer/scripts/audit_skill.py skills/macos-app-uninstaller

@@ -8,6 +8,7 @@ A private-first, portable repository for **self-maintained** Agent Skills. The f
 |---|---|
 | [video-to-knowledge](skills/video-to-knowledge/SKILL.md) | Download/source videos, local Whisper transcription, evidence-checked tutorial/knowledge notes |
 | [skill-reviewer](skills/skill-reviewer/SKILL.md) | Read-only Skill review: boundaries, portability, safety, syntax, documented behavior |
+| [macos-app-uninstaller](skills/macos-app-uninstaller/SKILL.md) | Identify macOS app residues by name or Bundle ID; confirmed Trash-only removal |
 
 Not included: Codex built-in `.system` Skills, third-party skills (e.g. media/sprite forge and Lark skills), or personal workspace/logs. These must undergo ownership, license, data, and dependency review before any future import.
 
@@ -55,6 +56,9 @@ python3 scripts/validate_skills.py
 python3 scripts/test_install.py
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/video-to-knowledge
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/skill-reviewer
+python3 -B skills/macos-app-uninstaller/scripts/test_uninstaller.py
+# On macOS with Xcode Command Line Tools:
+swiftc -typecheck skills/macos-app-uninstaller/scripts/trash.swift
 ```
 
 GitHub Actions runs these offline checks on pushes and pull requests. CI covers basic structure, path/secret heuristics, script syntax and installation safety—not AI-generated content quality, browser permission flows, paid services or long-running Whisper inference. A substantive Skill change still warrants scenario-based manual/agent review, and execution tests when safe.
