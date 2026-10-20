@@ -9,6 +9,7 @@ A private-first, portable repository for **self-maintained** Agent Skills. The f
 | [video-to-knowledge](skills/video-to-knowledge/SKILL.md) | Download/source videos, local Whisper transcription, evidence-checked tutorial/knowledge notes |
 | [skill-reviewer](skills/skill-reviewer/SKILL.md) | Read-only Skill review: boundaries, portability, safety, syntax, documented behavior |
 | [macos-app-uninstaller](skills/macos-app-uninstaller/SKILL.md) | Identify macOS app residues by name or Bundle ID; confirmed Trash-only removal |
+| [git-lifecycle](skills/git-lifecycle/SKILL.md) | Cross-project, read-only P0 audit of Git branches, worktrees and submodules; cleanup is not implemented |
 
 Not included: Codex built-in `.system` Skills, third-party skills (e.g. media/sprite forge and Lark skills), or personal workspace/logs. These must undergo ownership, license, data, and dependency review before any future import.
 
@@ -57,11 +58,23 @@ python3 scripts/test_install.py
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/video-to-knowledge
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/skill-reviewer
 python3 -B skills/macos-app-uninstaller/scripts/test_uninstaller.py
+python3 -B skills/git-lifecycle/scripts/test_git_lifecycle.py
 # On macOS with Xcode Command Line Tools:
 swiftc -typecheck skills/macos-app-uninstaller/scripts/trash.swift
 ```
 
 GitHub Actions runs these offline checks on pushes and pull requests. CI covers basic structure, path/secret heuristics, script syntax and installation safety—not AI-generated content quality, browser permission flows, paid services or long-running Whisper inference. A substantive Skill change still warrants scenario-based manual/agent review, and execution tests when safe.
+
+## Git lifecycle P0 (not installed by default)
+
+The [git-lifecycle skill](skills/git-lifecycle/SKILL.md) contains a deterministic read-only Git inventory. Until separately approved and installed, run it from this checkout:
+
+```bash
+python3 -B skills/git-lifecycle/scripts/git_lifecycle.py check --repo /absolute/project/path
+python3 -B skills/git-lifecycle/scripts/git_lifecycle.py check --repo /absolute/project/path --verify-remote
+```
+
+See the [P0/P1–P3 design and safety gates](skills/git-lifecycle/references/design-v1.md). Remote verification is deliberately conservative: SSH URLs or private HTTPS requiring credentials are reported as unavailable rather than assumed to be published. No Hooks, global rules, registry, scheduled scans, merges, or deletion are installed by this change.
 
 ## Privacy, ownership and publishing
 
