@@ -88,6 +88,30 @@ def check_skill(path: Path) -> list[str]:
     return errors
 
 
+def check_global_rules() -> list[str]:
+    """Check the shared global entry without interpreting project-specific instructions."""
+    entry = ROOT / "rules" / "agent-global.md"
+    if not entry.is_file() or entry.is_symlink():
+        return ["rules/agent-global.md: missing, non-file, or symlink source"]
+    try:
+        content = entry.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return ["rules/agent-global.md: non-UTF8 content"]
+    errors = []
+    if not content.strip() or len(content.encode("utf-8")) > 8192:
+        errors.append("rules/agent-global.md: must be non-empty and at most 8 KiB")
+    for label in ("Humans Decide, Agents Execute", "Reuse-First", "Human authorization"):
+        if label.lower() not in content.lower():
+            errors.append(f"rules/agent-global.md: missing required marker {label}")
+    if CREDENTIAL.search(content):
+        errors.append("rules/agent-global.md: possible credential material")
+    if "/Users/" in content or "/Volumes/" in content:
+        errors.append("rules/agent-global.md: machine-specific absolute path")
+    if re.search(r"(?m)^@\S+", content):
+        errors.append("rules/agent-global.md: Claude-only import is not portable to Codex")
+    return errors
+
+
 def main() -> int:
     if not SOURCE.is_dir():
         print("Missing skills/ directory", file=sys.stderr)
@@ -99,7 +123,9 @@ def main() -> int:
     errors = []
     for target in targets:
         errors.extend(check_skill(target))
-    results = {"skills": [p.name for p in targets], "errors": errors, "passed": not errors}
+    errors.extend(check_global_rules())
+    results = {"skills": [p.name for p in targets], "global_rules": "rules/agent-global.md",
+               "errors": errors, "passed": not errors}
     print(json.dumps(results, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 

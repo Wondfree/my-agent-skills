@@ -46,15 +46,16 @@ Old local directories are preserved in the target's `.skill-backups/` directory,
 ./scripts/update.sh --apply  # Fetch, verify the incoming revision, fast-forward
 ```
 
-Link-mode installations reflect the updated checkout. The update refuses dirty or diverged Git working trees and validates the incoming revision before applying. If you edit a linked Skill on your Mac, that is a Git working tree change: **review, commit and push it**; other machines then update. A remote update never auto-commits your unreviewed changes.
+Link-mode installations reflect the updated checkout. The update refuses dirty or diverged Git working trees and validates the incoming revision before applying. Global Instructions changes (including the legacy `reuse-first.md`) require approval bound to an exact reviewed commit SHA; see [Agent Instructions bootstrap and update safeguards](docs/agent-instructions.md). If you edit a linked Skill on your Mac, that is a Git working tree change: **review first, obtain commit/push authorization, then commit and push if approved**; other machines can then update. A remote update never auto-commits your unreviewed changes.
 
-To contribute a change, modify files **in this checkout**, run validation, commit and push. Avoid editing `.system` Skills or vendoring external code without a license check.
+To contribute a change, modify files **in this checkout**, run validation and review the exact diff; commit or push only after explicit Human authorization. Avoid editing `.system` Skills or vendoring external code without a license check.
 
 ## Review and CI
 
 ```bash
 python3 scripts/validate_skills.py
 python3 scripts/test_install.py
+python3 -B scripts/test_update.py
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/video-to-knowledge
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/skill-reviewer
 python3 -B skills/macos-app-uninstaller/scripts/test_uninstaller.py
@@ -67,7 +68,7 @@ GitHub Actions runs these offline checks on pushes and pull requests. CI covers 
 
 ## Git lifecycle P0 (not installed by default)
 
-The [git-lifecycle skill](skills/git-lifecycle/SKILL.md) contains a deterministic read-only Git inventory. Until separately approved and installed, run it from this checkout:
+The [git-lifecycle skill](skills/git-lifecycle/SKILL.md) contains a deterministic read-only Git inventory. The default `scripts/install.py` run **excludes** this opt-in Skill, even if the Skill exists in the repository; it does not change the installed Skills tree. Until separately approved and installed, run it from this checkout:
 
 ```bash
 python3 -B skills/git-lifecycle/scripts/git_lifecycle.py check --repo /absolute/project/path
