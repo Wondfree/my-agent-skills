@@ -59,6 +59,17 @@ def main() -> None:
         assert (explicit_dir / "git-lifecycle").is_symlink()
         assert (explicit_dir / "git-lifecycle").resolve() == (
             ROOT / "skills" / "git-lifecycle").resolve()
+        # A subsequent default install must not touch this explicitly installed Skill.
+        # Verify both the plan and the actual entry identity (not just its target).
+        opt_in_entry = explicit_dir / "git-lifecycle"
+        before = opt_in_entry.lstat()
+        later_default = execute("--target-dir", str(explicit_dir), "--dry-run")
+        assert "git-lifecycle:" not in later_default.stdout
+        execute("--target-dir", str(explicit_dir))
+        after = opt_in_entry.lstat()
+        assert opt_in_entry.is_symlink()
+        assert opt_in_entry.resolve() == (ROOT / "skills" / "git-lifecycle").resolve()
+        assert (before.st_ino, before.st_mtime_ns) == (after.st_ino, after.st_mtime_ns)
         local = root / "user skills"
         source = ROOT / "skills" / "video-to-knowledge"
         execute("--target-dir", str(local), "--only", "video-to-knowledge",
