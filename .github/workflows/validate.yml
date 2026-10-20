@@ -27,6 +27,8 @@ jobs:
         run: python3 -B skills/macos-app-uninstaller/scripts/test_uninstaller.py
       - name: Test read-only Git lifecycle inventory
         run: python3 -B skills/git-lifecycle/scripts/test_git_lifecycle.py
+      - name: Test inert Git lifecycle hook bridge
+        run: python3 -B skills/git-lifecycle/scripts/test_hook_bridge.py
       - name: Review static portability leads
         run: |
           python3 skills/skill-reviewer/scripts/audit_skill.py skills/video-to-knowledge

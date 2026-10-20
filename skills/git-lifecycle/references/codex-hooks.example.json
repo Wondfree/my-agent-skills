@@ -1,0 +1,29 @@
+{
+  "description": "EXAMPLE ONLY — NOT ACTIVE. Merge additively after separate approval; Codex requires hook trust.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B \"$HOME/.codex/skills/git-lifecycle/scripts/hook_bridge.py\" --client codex",
+            "timeout": 15,
+            "additionalContextLimit": 800
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B \"$HOME/.codex/skills/git-lifecycle/scripts/hook_bridge.py\" --client codex",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

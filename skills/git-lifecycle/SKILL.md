@@ -38,4 +38,6 @@ Without `--registry`, `--all` reads `~/.config/git-lifecycle/projects.json`. If 
 
 The checker exits 0 when scanning completes (even if issues need Human action), 1 on per-repository scan failures, and 2 on invalid input/registry. Use `--json` for machine-readable results. Git metadata may contain private local paths; treat output as local/private evidence.
 
+For P1, the [isolated Hook adapter preview](references/p1-hook-integration.md) and its **inactive** client-specific examples are available for review. This source does not enable any Hooks. Use `python3 -B scripts/test_hook_bridge.py` to test synthetic event delivery without changing live agent configuration.
+
 For follow-on P1–P3, permission gates, future hook integration, and limitations, read [design and safety boundaries](references/design-v1.md).
