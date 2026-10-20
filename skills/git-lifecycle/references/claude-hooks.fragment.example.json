@@ -1,0 +1,28 @@
+{
+  "description": "EXAMPLE FRAGMENT ONLY — DO NOT REPLACE ~/.claude/settings.json or existing cc-status handlers.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B \"$HOME/.claude/skills/git-lifecycle/scripts/hook_bridge.py\" --client claude",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B \"$HOME/.claude/skills/git-lifecycle/scripts/hook_bridge.py\" --client claude",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
