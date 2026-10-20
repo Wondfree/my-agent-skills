@@ -100,7 +100,7 @@ def check_global_rules() -> list[str]:
     errors = []
     if not content.strip() or len(content.encode("utf-8")) > 8192:
         errors.append("rules/agent-global.md: must be non-empty and at most 8 KiB")
-    for label in ("Humans Decide, Agents Execute", "Reuse-First", "Human authorization"):
+    for label in ("Humans Decide, Agents Execute", "Outcome-First", "Reuse-First", "Build-Last", "Human authorization"):
         if label.lower() not in content.lower():
             errors.append(f"rules/agent-global.md: missing required marker {label}")
     if CREDENTIAL.search(content):
