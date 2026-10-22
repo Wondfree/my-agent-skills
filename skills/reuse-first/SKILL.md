@@ -11,7 +11,7 @@ Apply this **before** committing to a consequential design, migration, reusable 
 
 - **Trigger:** New generic infrastructure, data/monitoring/automation systems, environment migration or consequential technology decisions with plausible alternatives. Match research depth to impact, reversibility and uncertainty.
 - **Problem:** What is actually failing, and what evidence supports that diagnosis? Label observations separately from assumptions.
-- **Outcome:** What result does Human want, and how will it be demonstrated or accepted? Do not confuse a proposed technical action with the goal it is supposed to achieve.
+- **Outcome:** What result does Human want, and how will it be demonstrated or accepted? Do not confuse a proposed technical action with the goal it is supposed to achieve. For continuing Agent workflows, trace the full chain from trigger to usable output (including automated analysis, durable draft and notification as required), not just one successful technical hop.
 - **Constraints vs proposed solution:** Distinguish explicit must-use/must-not-use instructions and approved decisions from a suggested method. Honor genuinely fixed constraints; do not repeatedly reopen approval. Use existing context to resolve assumptions. If a single unresolved fact materially changes the decision, ask one decisive question; otherwise state provisional assumptions and proceed with a bounded comparison. Do not require multi-question intake, a form, or repeated approval.
 - **Exclusions:** For routine bugs, scoped patches, approved minor implementation and routine tests, solve the task directly. Do not require a formal questionnaire, full ecosystem survey or new Human approval.
 
@@ -31,6 +31,8 @@ Use existing sources before inventing a replacement:
 
 A Toolbox miss does not mean the ecosystem has no candidate. If tools, network or trustworthy evidence are unavailable, mark `NOT VERIFIED` and stop short of an unsupported self-build recommendation. Do not browse without a meaningful reason or expand research indefinitely.
 
+**Reuse evidence, not just components.** Before designing a fresh investigation or test, look for applicable official documentation, already inspected implementations, project test results, run logs, and historical incident findings. Record the source and conditions of each useful result, then distinguish (A) supported facts, (B) evidence with unconfirmed applicability to this environment, (C) decision-critical assumptions lacking evidence, and (D) unknowns irrelevant to the current decision. Do not treat a missing test in this conversation as proof it was never run; equally, a product capability described in documentation is not proof it succeeded under this account and permission set.
+
 ## 4. Build vs Reuse
 
 Compare viable **keep/minimal fix**, **reuse**, **adapt/combine**, **build**, and **defer** options against the same original outcome and fixed constraints. Record concise, source-backed evidence for:
@@ -43,9 +45,21 @@ Compare viable **keep/minimal fix**, **reuse**, **adapt/combine**, **build**, an
 
 Prefer a concrete shortlist with disqualifiers over a rigid scorecard. Do not claim a library is safe, maintained or compatible without checking it. When a candidate is rejected, explain why; when no viable options can be confirmed, preserve unknowns.
 
+### Validate only the decision gap (proportional)
+
+Before proposing a new experiment, answer briefly (in prose for simple decisions; no mandatory matrix):
+
+1. **Unknown:** Which precise condition remains uncertain?
+2. **Existing evidence:** What do official sources, project logs and previous tests already establish, and under which conditions?
+3. **Decision impact:** Would failure of the proposed check change the current choice or safety assessment? If not, normally defer it.
+4. **Smallest safe check:** Can existing evidence, a permission inspection, a read-back, or a bounded test settle only that gap?
+5. **Stop condition:** What observable result is sufficient to choose, proceed, defer or stop?
+
+When the evidence meets the defined decision threshold, stop adding tests. A new hypothetical failure mode is not automatically a new prerequisite: apply the existing Direction Drift Check against the original outcome. Conversely, require relevant environment-specific verification for permissions, external writes, data safety, migrations or irreversible/high-risk changes; documentation of general support cannot waive those checks.
+
 ## 5. Decision handoff
 
-Provide: (a) the observed problem, desired outcome, fixed constraints and proposed solution as distinct items, (b) smaller alternatives and candidates with sources, (c) concise comparison and evidence gaps, (d) keep/fix/reuse/combine/build/defer recommendation and why, (e) outcome validation or reversal conditions, and (f) the **Human decision required when consequential**, or the existing approval for a small reversible choice. Stop at the existing authorization boundary.
+Provide: (a) the observed problem, desired outcome, fixed constraints and proposed solution as distinct items, (b) smaller alternatives and candidates with sources, (c) concise comparison and evidence gaps, (d) keep/fix/reuse/combine/build/defer recommendation and why, (e) outcome validation or reversal conditions, and (f) the **Human decision required when consequential**, or the existing approval for a small reversible choice. For recurring Agent workflows, identify any remaining manual triggers: distinguish genuine Human decisions from execution steps that should run under existing authorization. Stop at the existing authorization boundary.
 
 Save project-specific comparison in its established decision/design record; refer useful general learnings to Personal System Toolbox per its Handoffs, respecting access and separate approval. Do not create a second candidate database or automatically upgrade Toolbox levels.
 
@@ -58,8 +72,10 @@ The independent reviewer examines the actual proposal, project rules and support
 - **R3 Minimal Change:** Were keep/configuration/local-repair alternatives considered before migration or system creation?
 - **R4 Reuse Evidence:** Were applicable project/Toolbox, official, maintained OSS and managed candidates investigated proportionately? Are key rejections justified rather than inferred from a Toolbox miss?
 - **R5 Scope and Authority:** Does the plan honor Human decisions, repository boundaries, dirty worktrees and existing project Review gates?
+- **R6 Evidence Sufficiency and Validation Stop:** Did the team reuse applicable prior evidence, distinguish conditional evidence from unknowns, require each new experiment to affect the decision, choose the smallest safe check, and stop when sufficient? Were essential safety checks preserved?
+- **R7 End-to-End Outcome and Human Touchpoints:** Does the workflow deliver the authorized user outcome, rather than stopping at an intermediate technical artifact? Is each manual trigger/reapproval necessary for a decision, risk or permission boundary? Are already-authorized, low-risk steps able to progress without Human prompting, while actual Human Gates remain intact?
 
-For consequential design, unresolved R1, material R2–R4 gaps affecting the decision, or substantive R5 violations **block design Review**. Minor improvements do not expand scope indefinitely. For routine fixes and already approved scoped execution, imposing a full design survey is itself a review error. Self-check or script output is not independent Review. After implementation, verify not only technical correctness but whether the defined Outcome was achieved without unnecessary maintenance burden.
+For consequential design, unresolved R1, material R2–R4 or R6 gaps affecting the decision, material R7 gaps leaving the authorized outcome incomplete, or substantive R5 violations **block design Review**. Minor improvements do not expand scope indefinitely. For routine fixes and already approved scoped execution, imposing a full design survey is itself a review error. Self-check or script output is not independent Review. After implementation, verify not only technical correctness but whether the defined Outcome was achieved without unnecessary maintenance burden.
 
 ## Calibration examples
 
@@ -70,4 +86,9 @@ For consequential design, unresolved R1, material R2–R4 gaps affecting the dec
 - Toolbox no match: **continue** with official and OSS discovery, or report access gaps.
 - Proposed custom task queue or RAG store: **trigger**; a reviewer must examine Build vs Reuse evidence.
 - Existing approved dependency, small adapter fix: normally **no full discovery** unless important new evidence invalidates that decision.
+- Official GitHub API supports JSON writes: **do not** create a test repository merely to re-prove that capability; check real account authorization only when it changes the decision.
+- A first Scheduled write has succeeded: reuse the recorded write/read-back evidence; test cross-run state recovery only if required by the outcome, then stop if sufficient.
+- A risk radar saves candidate events to a GitHub inbox but still requires Human to manually launch each approved L1 research task: **incomplete end-to-end workflow** when automatic research was already delegated. Reuse the established L1 queue and permission boundary instead of creating a new approval step.
+- Autonomous research is not approval to overwrite formal investment SSOT, extend repository permissions, or place trades; apply the existing project Human Gates.
+- Production database migration: official upgrade support does **not** replace necessary environment-specific backups, restore and migration checks.
 - A new shared infrastructure request in GameChat or a new project: **trigger**, but also respect local project-specific selection gates; do not assume Toolbox availability or installation means the agent actually loaded this rule.
