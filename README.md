@@ -39,6 +39,37 @@ python3 scripts/install.py --adopt-existing
 
 Old local directories are preserved in the target's `.skill-backups/` directory, never deleted. Inspect those backups before removing anything yourself. A linked installation points to the local repo; if you move the repo, reinstall links from its new location. `--mode copy` creates independently editable copies, but those copies need explicit refreshes after Git updates.
 
+## Interactive selection and optional AI review
+
+```sh
+python3 -B scripts/install_wizard.py --dry-run
+python3 -B scripts/install_wizard.py
+
+# Force Simplified Chinese (even when macOS's preferred language is English):
+python3 -B scripts/install_wizard.py --lang zh-CN --dry-run
+# Explicit English:
+python3 -B scripts/install_wizard.py --lang en --dry-run
+```
+
+The wizard asks only about components not yet installed. Existing Skills
+and global rules remain unchanged: exact source matches are marked installed;
+links to another checkout show their real source without comparing private
+file contents; other entries are listed for separate review, not replacement.
+Existing components do not block installing unrelated new ones. All new-item
+questions default to No, including Git Lifecycle. A final summary and
+confirmation explain link/copy behavior. Requires an interactive terminal.
+The wizard supports Chinese Simplified and English, detects the selected locale
+(with explicit `LC_ALL` / `LC_MESSAGES` taking precedence, then macOS preferred
+UI language, then `LANG`), and accepts `--lang zh-CN` or `--lang en` as
+an override. The existing `install.py` CLI defaults to English as before.
+Skill installation does not enable Git Lifecycle hooks; activation needs a separate
+decision. The original `install.py` defaults and CLI remain available.
+
+V2-B is a **human-invoked AI review handoff**, not automated semantic analysis.
+It prints a path-only prompt, invokes no model, and requires separate consent
+before an existing Codex/Claude agent reads potentially private configuration.
+See [workflow, comparison, limitations, and tests](docs/installer-v2.md).
+
 ## Update and synchronize
 
 ```bash
@@ -55,6 +86,7 @@ To contribute a change, modify files **in this checkout**, run validation and re
 ```bash
 python3 scripts/validate_skills.py
 python3 scripts/test_install.py
+python3 -B scripts/test_install_wizard.py
 python3 -B scripts/test_update.py
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/video-to-knowledge
 python3 skills/skill-reviewer/scripts/audit_skill.py skills/skill-reviewer

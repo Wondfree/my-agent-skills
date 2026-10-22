@@ -13,6 +13,8 @@ import shutil
 import sys
 import uuid
 
+from installer_i18n import Translator, Parser, language_from_args, escape_controls
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "skills"
@@ -63,11 +65,12 @@ def describe_target(path: Path, source: Path, mode: str) -> str:
     return "different"
 
 
-def atomic_install(source: Path, target: Path, mode: str, adopt: bool, *, kind: str = "skill") -> str:
+def atomic_install(source: Path, target: Path, mode: str, adopt: bool, *, kind: str = "skill", lang: str = "en") -> str:
+    t = Translator(lang)
     temp = target.parent / f".{target.name}.install-{uuid.uuid4().hex[:10]}"
     backup = None
     if temp.exists() or temp.is_symlink():
-        raise RuntimeError(f"Unexpected temporary path already exists: {temp}")
+        raise RuntimeError(t("Unexpected temporary path already exists: {temp}", temp=temp))
     if mode == "link":
         temp.symlink_to(source.resolve(), target_is_directory=source.is_dir())
     elif source.is_dir():
@@ -77,7 +80,7 @@ def atomic_install(source: Path, target: Path, mode: str, adopt: bool, *, kind: 
     try:
         if target.exists() or target.is_symlink():
             if not adopt:
-                raise RuntimeError(f"Existing installation requires --adopt-existing: {target}")
+                raise RuntimeError(t("Existing installation requires --adopt-existing: {target}", target=target))
             backup_dir = ".skill-backups" if kind == "skill" else ".instruction-backups"
             backups = target.parent / backup_dir
             backups.mkdir(parents=True, exist_ok=True)
@@ -95,31 +98,38 @@ def atomic_install(source: Path, target: Path, mode: str, adopt: bool, *, kind: 
             temp.unlink()
         elif temp.exists():
             shutil.rmtree(temp)
-    return f"installed {target} ({mode})" + (f"; previous entry: {backup}" if backup else "")
+    return t("installed {target} ({mode})", target=target, mode=mode) + (t("; previous entry: {backup}", backup=backup) if backup else "")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target-dir", help="Skills destination: SKILLS_TARGET_DIR or CODEX_HOME/skills")
+def main(argv: list[str] | None = None) -> int:
+    lang = language_from_args(argv, default=lambda: "en")
+    t = Translator(lang)
+    parser = Parser(lang=lang, description=t(__doc__))
+    parser.add_argument("--lang", choices=("zh-CN", "en"), help=t("Output language (default: en)"))
+    parser.add_argument("--target-dir", help=t("Skills destination: SKILLS_TARGET_DIR or CODEX_HOME/skills"))
     parser.add_argument("--mode", choices=("link", "copy"), default="link",
-                        help="link: follows checkout updates; copy: requires explicit refresh")
+                        help=t("link: follows checkout updates; copy: requires explicit refresh"))
     parser.add_argument("--only", nargs="+", metavar="NAME",
-                        help="Explicitly select Skills (including opt-in); default excludes opt-in")
+                        help=t("Explicitly select Skills (including opt-in); default excludes opt-in"))
     parser.add_argument("--with-instructions", action="store_true",
-                        help="Install Skills and both global instruction entries")
+                        help=t("Install Skills and both global instruction entries"))
     parser.add_argument("--instructions-only", action="store_true",
-                        help="Install only global instruction entries; leave Skills unchanged")
-    parser.add_argument("--codex-home", help="Override Codex home for global instructions")
-    parser.add_argument("--claude-home", help="Override Claude config home for global instructions")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
+                        help=t("Install only global instruction entries; leave Skills unchanged"))
+    parser.add_argument("--codex-home", help=t("Override Codex home for global instructions"))
+    parser.add_argument("--claude-home", help=t("Override Claude config home for global instructions"))
+    parser.add_argument("--dry-run", action="store_true", help=t("Preview without writing"))
     parser.add_argument("--adopt-existing", action="store_true",
-                        help="Explicitly back up and replace existing entries")
-    args = parser.parse_args()
+                        help=t("Explicitly back up and replace existing entries"))
+    parser.add_argument("--instruction-clients", nargs="+", choices=("codex", "claude"),
+                        help=t("Select global instruction clients; default remains both"))
+    args = parser.parse_args(argv)
+    if args.instruction_clients and not (args.with_instructions or args.instructions_only):
+        parser.error(t('--instruction-clients requires Instructions installation'))
 
     if args.instructions_only and (args.only or args.target_dir):
-        parser.error("--only and --target-dir configure Skills; neither applies to --instructions-only")
+        parser.error(t('--only and --target-dir configure Skills; neither applies to --instructions-only'))
     if (args.codex_home or args.claude_home) and not (args.with_instructions or args.instructions_only):
-        parser.error("--codex-home/--claude-home require Instructions installation")
+        parser.error(t('--codex-home/--claude-home require Instructions installation'))
 
     plans: list[tuple[str, Path, Path, str, str]] = []
     if not args.instructions_only:
@@ -129,10 +139,10 @@ def main() -> int:
         )))
         bad = [n for n in requested if n not in skills]
         if bad:
-            parser.error(f"Unknown skills {bad}; available: {sorted(skills)}")
+            parser.error(t("Unknown skills {bad}; available: {available}", bad=bad, available=sorted(skills)))
         target_dir = destination_dir(args.target_dir)
         if target_dir == SOURCE.resolve() or SOURCE.resolve() in target_dir.parents:
-            parser.error("Skills target must not be inside this repository's skills source directory.")
+            parser.error(t("Skills target must not be inside this repository's skills source directory."))
         for name in requested:
             src = skills[name]
             dst = target_dir / name
@@ -140,26 +150,27 @@ def main() -> int:
 
     if args.with_instructions or args.instructions_only:
         if not GLOBAL_RULE.is_file():
-            parser.error(f"Global rules source is missing: {GLOBAL_RULE}")
+            parser.error(t("Global rules source is missing: {path}", path=GLOBAL_RULE))
         for name, dst in instructions_targets(args.codex_home, args.claude_home):
+            if args.instruction_clients and name.split("-")[0] not in args.instruction_clients:
+                continue
             src = GLOBAL_RULE
             # Reject parent traversal before any symlinks are created. A path
             # containing ".." may escape a future Skill link only after the link
             # is installed, even if its normalized path appears harmless now.
             if ".." in dst.parts:
-                parser.error(f"{name}: instruction home must not contain '..': {dst}")
+                parser.error(t("{name}: instruction home must not contain '..': {dst}", name=name, dst=dst))
             if name == "codex-global":
                 override = dst.parent / "AGENTS.override.md"
                 if override.exists() or override.is_symlink():
                     parser.error(
-                        f"Codex AGENTS.override.md shadows the managed AGENTS.md: {override}. "
-                        "Inspect and resolve the local override explicitly; it will not be overwritten."
+                        t("Codex AGENTS.override.md shadows the managed AGENTS.md: {override}. Inspect and resolve the local override explicitly; it will not be overwritten.", override=override)
                     )
             # Resolve the *parent*, not the entry: an existing global entry can
             # itself be a legacy symlink into this repository and must be migratable.
             canonical_parent = dst.parent.resolve()
             if canonical_parent == ROOT.resolve() or ROOT.resolve() in canonical_parent.parents:
-                parser.error(f"Instruction target cannot be inside source repository: {dst}")
+                parser.error(t("Instruction target cannot be inside source repository: {dst}", dst=dst))
             plans.append((name, src, dst, describe_target(dst, src, args.mode), "instruction"))
 
     # Reject targets nested under a Skill that will be installed as a link.
@@ -179,31 +190,31 @@ def main() -> int:
             if (lexical_parent == skill_dst or skill_dst in lexical_parent.parents
                     or canonical_parent == canonical_skill_dst
                     or canonical_skill_dst in canonical_parent.parents):
-                parser.error(f"{name}: instruction target is nested in a managed Skill destination: {dst}")
+                parser.error(t("{name}: instruction target is nested in a managed Skill destination: {dst}", name=name, dst=dst))
 
     # Preflight all targets before any modification. Detect duplicate target paths.
     targets = [dst for _name, _src, dst, _state, _kind in plans]
     if len(set(targets)) != len(targets):
-        parser.error("Two install entries resolve to the same destination")
+        parser.error(t('Two install entries resolve to the same destination'))
     conflicts = [str(dst) for _name, _src, dst, state, _kind in plans
                  if state == "different" and not args.adopt_existing]
     if conflicts:
-        print("REFUSED: existing installations will not be overwritten:", file=sys.stderr)
+        print(t('REFUSED: existing installations will not be overwritten:'), file=sys.stderr)
         for item in conflicts:
-            print(f"  - {item}", file=sys.stderr)
-        print("Inspect existing entries; use --adopt-existing to back up and replace explicitly.",
+            print(f"  - {escape_controls(item)}", file=sys.stderr)
+        print(t('Inspect existing entries; use --adopt-existing to back up and replace explicitly.'),
               file=sys.stderr)
         return 2
     for name, _src, dst, state, _kind in plans:
         action = "skip" if state == "current" else ("back up + install" if state == "different" else "install")
-        print(f"{'[dry-run] ' if args.dry_run else ''}{name}: {action} -> {dst}")
+        print(f"{t('[dry-run] ') if args.dry_run else ''}{name}: {t(action)} -> {dst}")
     if args.dry_run:
         return 0
 
     for name, src, dst, state, kind in plans:
         if state != "current":
             dst.parent.mkdir(parents=True, exist_ok=True)
-            print(atomic_install(src, dst, args.mode, args.adopt_existing, kind=kind))
+            print(atomic_install(src, dst, args.mode, args.adopt_existing, kind=kind, lang=lang))
     return 0
 
 
