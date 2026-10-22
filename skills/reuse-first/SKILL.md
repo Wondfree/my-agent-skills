@@ -11,7 +11,7 @@ Apply this **before** committing to a consequential design, migration, reusable 
 
 - **Trigger:** New generic infrastructure, data/monitoring/automation systems, environment migration or consequential technology decisions with plausible alternatives. Match research depth to impact, reversibility and uncertainty.
 - **Problem:** What is actually failing, and what evidence supports that diagnosis? Label observations separately from assumptions.
-- **Outcome:** What result does Human want, and how will it be demonstrated or accepted? Do not confuse a proposed technical action with the goal it is supposed to achieve.
+- **Outcome:** What result does Human want, and how will it be demonstrated or accepted? Do not confuse a proposed technical action with the goal it is supposed to achieve. For continuing Agent workflows, trace the full chain from trigger to usable output (including automated analysis, durable draft and notification as required), not just one successful technical hop.
 - **Constraints vs proposed solution:** Distinguish explicit must-use/must-not-use instructions and approved decisions from a suggested method. Honor genuinely fixed constraints; do not repeatedly reopen approval. Use existing context to resolve assumptions. If a single unresolved fact materially changes the decision, ask one decisive question; otherwise state provisional assumptions and proceed with a bounded comparison. Do not require multi-question intake, a form, or repeated approval.
 - **Exclusions:** For routine bugs, scoped patches, approved minor implementation and routine tests, solve the task directly. Do not require a formal questionnaire, full ecosystem survey or new Human approval.
 
@@ -59,7 +59,7 @@ When the evidence meets the defined decision threshold, stop adding tests. A new
 
 ## 5. Decision handoff
 
-Provide: (a) the observed problem, desired outcome, fixed constraints and proposed solution as distinct items, (b) smaller alternatives and candidates with sources, (c) concise comparison and evidence gaps, (d) keep/fix/reuse/combine/build/defer recommendation and why, (e) outcome validation or reversal conditions, and (f) the **Human decision required when consequential**, or the existing approval for a small reversible choice. Stop at the existing authorization boundary.
+Provide: (a) the observed problem, desired outcome, fixed constraints and proposed solution as distinct items, (b) smaller alternatives and candidates with sources, (c) concise comparison and evidence gaps, (d) keep/fix/reuse/combine/build/defer recommendation and why, (e) outcome validation or reversal conditions, and (f) the **Human decision required when consequential**, or the existing approval for a small reversible choice. For recurring Agent workflows, identify any remaining manual triggers: distinguish genuine Human decisions from execution steps that should run under existing authorization. Stop at the existing authorization boundary.
 
 Save project-specific comparison in its established decision/design record; refer useful general learnings to Personal System Toolbox per its Handoffs, respecting access and separate approval. Do not create a second candidate database or automatically upgrade Toolbox levels.
 
@@ -73,8 +73,9 @@ The independent reviewer examines the actual proposal, project rules and support
 - **R4 Reuse Evidence:** Were applicable project/Toolbox, official, maintained OSS and managed candidates investigated proportionately? Are key rejections justified rather than inferred from a Toolbox miss?
 - **R5 Scope and Authority:** Does the plan honor Human decisions, repository boundaries, dirty worktrees and existing project Review gates?
 - **R6 Evidence Sufficiency and Validation Stop:** Did the team reuse applicable prior evidence, distinguish conditional evidence from unknowns, require each new experiment to affect the decision, choose the smallest safe check, and stop when sufficient? Were essential safety checks preserved?
+- **R7 End-to-End Outcome and Human Touchpoints:** Does the workflow deliver the authorized user outcome, rather than stopping at an intermediate technical artifact? Is each manual trigger/reapproval necessary for a decision, risk or permission boundary? Are already-authorized, low-risk steps able to progress without Human prompting, while actual Human Gates remain intact?
 
-For consequential design, unresolved R1, material R2–R4 or R6 gaps affecting the decision, or substantive R5 violations **block design Review**. Minor improvements do not expand scope indefinitely. For routine fixes and already approved scoped execution, imposing a full design survey is itself a review error. Self-check or script output is not independent Review. After implementation, verify not only technical correctness but whether the defined Outcome was achieved without unnecessary maintenance burden.
+For consequential design, unresolved R1, material R2–R4 or R6 gaps affecting the decision, material R7 gaps leaving the authorized outcome incomplete, or substantive R5 violations **block design Review**. Minor improvements do not expand scope indefinitely. For routine fixes and already approved scoped execution, imposing a full design survey is itself a review error. Self-check or script output is not independent Review. After implementation, verify not only technical correctness but whether the defined Outcome was achieved without unnecessary maintenance burden.
 
 ## Calibration examples
 
@@ -87,5 +88,7 @@ For consequential design, unresolved R1, material R2–R4 or R6 gaps affecting t
 - Existing approved dependency, small adapter fix: normally **no full discovery** unless important new evidence invalidates that decision.
 - Official GitHub API supports JSON writes: **do not** create a test repository merely to re-prove that capability; check real account authorization only when it changes the decision.
 - A first Scheduled write has succeeded: reuse the recorded write/read-back evidence; test cross-run state recovery only if required by the outcome, then stop if sufficient.
+- A risk radar saves candidate events to a GitHub inbox but still requires Human to manually launch each approved L1 research task: **incomplete end-to-end workflow** when automatic research was already delegated. Reuse the established L1 queue and permission boundary instead of creating a new approval step.
+- Autonomous research is not approval to overwrite formal investment SSOT, extend repository permissions, or place trades; apply the existing project Human Gates.
 - Production database migration: official upgrade support does **not** replace necessary environment-specific backups, restore and migration checks.
 - A new shared infrastructure request in GameChat or a new project: **trigger**, but also respect local project-specific selection gates; do not assume Toolbox availability or installation means the agent actually loaded this rule.
