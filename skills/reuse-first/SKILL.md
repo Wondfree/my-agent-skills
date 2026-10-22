@@ -31,6 +31,8 @@ Use existing sources before inventing a replacement:
 
 A Toolbox miss does not mean the ecosystem has no candidate. If tools, network or trustworthy evidence are unavailable, mark `NOT VERIFIED` and stop short of an unsupported self-build recommendation. Do not browse without a meaningful reason or expand research indefinitely.
 
+**Reuse evidence, not just components.** Before designing a fresh investigation or test, look for applicable official documentation, already inspected implementations, project test results, run logs, and historical incident findings. Record the source and conditions of each useful result, then distinguish (A) supported facts, (B) evidence with unconfirmed applicability to this environment, (C) decision-critical assumptions lacking evidence, and (D) unknowns irrelevant to the current decision. Do not treat a missing test in this conversation as proof it was never run; equally, a product capability described in documentation is not proof it succeeded under this account and permission set.
+
 ## 4. Build vs Reuse
 
 Compare viable **keep/minimal fix**, **reuse**, **adapt/combine**, **build**, and **defer** options against the same original outcome and fixed constraints. Record concise, source-backed evidence for:
@@ -42,6 +44,18 @@ Compare viable **keep/minimal fix**, **reuse**, **adapt/combine**, **build**, an
 - Actual constraints that might justify custom development.
 
 Prefer a concrete shortlist with disqualifiers over a rigid scorecard. Do not claim a library is safe, maintained or compatible without checking it. When a candidate is rejected, explain why; when no viable options can be confirmed, preserve unknowns.
+
+### Validate only the decision gap (proportional)
+
+Before proposing a new experiment, answer briefly (in prose for simple decisions; no mandatory matrix):
+
+1. **Unknown:** Which precise condition remains uncertain?
+2. **Existing evidence:** What do official sources, project logs and previous tests already establish, and under which conditions?
+3. **Decision impact:** Would failure of the proposed check change the current choice or safety assessment? If not, normally defer it.
+4. **Smallest safe check:** Can existing evidence, a permission inspection, a read-back, or a bounded test settle only that gap?
+5. **Stop condition:** What observable result is sufficient to choose, proceed, defer or stop?
+
+When the evidence meets the defined decision threshold, stop adding tests. A new hypothetical failure mode is not automatically a new prerequisite: apply the existing Direction Drift Check against the original outcome. Conversely, require relevant environment-specific verification for permissions, external writes, data safety, migrations or irreversible/high-risk changes; documentation of general support cannot waive those checks.
 
 ## 5. Decision handoff
 
@@ -58,8 +72,9 @@ The independent reviewer examines the actual proposal, project rules and support
 - **R3 Minimal Change:** Were keep/configuration/local-repair alternatives considered before migration or system creation?
 - **R4 Reuse Evidence:** Were applicable project/Toolbox, official, maintained OSS and managed candidates investigated proportionately? Are key rejections justified rather than inferred from a Toolbox miss?
 - **R5 Scope and Authority:** Does the plan honor Human decisions, repository boundaries, dirty worktrees and existing project Review gates?
+- **R6 Evidence Sufficiency and Validation Stop:** Did the team reuse applicable prior evidence, distinguish conditional evidence from unknowns, require each new experiment to affect the decision, choose the smallest safe check, and stop when sufficient? Were essential safety checks preserved?
 
-For consequential design, unresolved R1, material R2–R4 gaps affecting the decision, or substantive R5 violations **block design Review**. Minor improvements do not expand scope indefinitely. For routine fixes and already approved scoped execution, imposing a full design survey is itself a review error. Self-check or script output is not independent Review. After implementation, verify not only technical correctness but whether the defined Outcome was achieved without unnecessary maintenance burden.
+For consequential design, unresolved R1, material R2–R4 or R6 gaps affecting the decision, or substantive R5 violations **block design Review**. Minor improvements do not expand scope indefinitely. For routine fixes and already approved scoped execution, imposing a full design survey is itself a review error. Self-check or script output is not independent Review. After implementation, verify not only technical correctness but whether the defined Outcome was achieved without unnecessary maintenance burden.
 
 ## Calibration examples
 
@@ -70,4 +85,7 @@ For consequential design, unresolved R1, material R2–R4 gaps affecting the dec
 - Toolbox no match: **continue** with official and OSS discovery, or report access gaps.
 - Proposed custom task queue or RAG store: **trigger**; a reviewer must examine Build vs Reuse evidence.
 - Existing approved dependency, small adapter fix: normally **no full discovery** unless important new evidence invalidates that decision.
+- Official GitHub API supports JSON writes: **do not** create a test repository merely to re-prove that capability; check real account authorization only when it changes the decision.
+- A first Scheduled write has succeeded: reuse the recorded write/read-back evidence; test cross-run state recovery only if required by the outcome, then stop if sufficient.
+- Production database migration: official upgrade support does **not** replace necessary environment-specific backups, restore and migration checks.
 - A new shared infrastructure request in GameChat or a new project: **trigger**, but also respect local project-specific selection gates; do not assume Toolbox availability or installation means the agent actually loaded this rule.
