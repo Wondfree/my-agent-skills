@@ -1,6 +1,8 @@
-# Git Lifecycle P1 — Isolated Hook Adapter / Activation Gate
+# Git Lifecycle P1 — Hook Integration / Activation Gates
 
-Status: **implementation preview in isolated Worktree only; NOT ENABLED**. This document does not approve edits to user-level Codex or Claude configuration, project rules, remote repositories, or installed Skills links.
+**Source status:** the read-only adapter is included in this repository. JSON files under `references/` are inactive examples; installing the skill does not enable hooks. **Deployment status is client-specific:** a machine may already have separately configured hooks. Check its configuration and runtime evidence rather than inferring activation from source files or this document. See the [deployment verification boundaries](design-v1.md#p1-部署状态的核验边界).
+
+This document does not approve edits to user-level Codex or Claude configuration, project rules, remote repositories or installed skill links.
 
 ## Reuse-First and authority
 
@@ -24,10 +26,10 @@ Non-Git directories, malformed events, and unrelated hook events produce `{}`. O
 
 ## Inactive examples
 
-- `codex-hooks.example.json` — **illustrative**, not installed; do not overwrite current `~/.codex/config.toml` or hooks source. Codex user-level hooks may require explicit trust/review.
+- `codex-hooks.example.json` — **illustrative**, not automatically installed; do not overwrite current `~/.codex/config.toml` or hooks source. Codex user-level hooks may require explicit trust/review.
 - `claude-hooks.fragment.example.json` — **additive fragment**, never a replacement for `~/.claude/settings.json`. Existing `cc-status` event handlers must remain intact.
 
-Both examples run commands from currently installed Git Lifecycle Skills symlinks, **which still point to P0 until a separately approved merge/update**. They are deliberately stored under `references/`, where no runtime discovers them as active Hook definitions. The current production configuration should be inspected again immediately before any activation.
+Both examples assume the standard per-client skill installation path; verify the resolved source and presence of `scripts/hook_bridge.py` for the target installation. They are deliberately stored under `references/`, where no runtime discovers them as active hook definitions. Inspect existing configuration immediately before any activation or change; examples do not establish whether a separate live configuration already exists.
 
 Tests (offline, temporary fixture):
 
@@ -37,10 +39,10 @@ python3 -B skills/git-lifecycle/scripts/test_git_lifecycle.py
 python3 -B scripts/validate_skills.py
 ```
 
-## Required separate activation gate
+## Required gates for activation or deployment changes
 
 1. Obtain independent Review of adapter, test behavior, event contracts and JSON examples; resolve findings. Recheck source and current Git/worktree statuses.
-2. Approve merging the isolated P1 branch and updating the installed Skill source. Approval to implement **does not authorize merging, committing or pushing**.
+2. Identify the actual source checkout and installed skill target. If a merge or source update is needed, obtain separate approval; do not assume a particular preview branch still exists or needs merging. Approval to implement **does not authorize merging, committing or pushing**.
 3. Compare existing Codex hook configuration (including existing `hooks.state`/other TOML data) and Claude Code `cc-status` handlers before any additive install. Back up original bytes and record checksums under a separately approved plan; never overwrite or remove other handlers.
 4. Review exact per-client Hook diffs, Hook trust, timeouts and the absence of hooks in cloud/runtime modes that do not support them.
 5. Validate Saved → Loaded → Triggered → Behavior in fresh Codex and Claude sessions, including a non-Git session, a clean fixture, and a dirty/linked-worktree fixture. Runtime Hook coverage cannot be inferred from standalone CLI testing.
@@ -48,9 +50,9 @@ python3 -B scripts/validate_skills.py
 
 **Deferred**: durable baseline persistence, task identity / ownership metadata, conflict-safe session registry, retrospective sessions/abrupt termination audits, human notifications, and all merge/remove/cleanup actions. These need a new design/review and explicit Human approval. Existing project-specific AGENTS/CLAUDE rules remain authoritative for scope and decision gates.
 
-## Acceptance criteria (this stage only)
+## Verification boundaries
 
-- New P1 code remains isolated in `codex/git-lifecycle-p1`; main, all live Agent configs and other projects unchanged.
+- Source changes and offline tests do not authorize edits to live agent configuration, installed links or other projects.
 - Both clients' simulated JSON events parse correctly and do not block or disclose private transcript/session fields.
 - Existing P0 behavior is unchanged and the temporary Git fixtures remain disposable.
-- No claim of actual Hook runtime integration or persistent task tracking before separately approved live activation.
+- Report saved configuration, loaded hooks, observed event delivery and resulting behavior separately for each client. Existing deployment evidence does not prove all events still work; simulated tests do not establish live integration or persistent task tracking.
