@@ -1,6 +1,6 @@
 # Git Lifecycle P1 — Hook Integration / Activation Gates
 
-**Source status:** the read-only adapter is included in this repository. JSON files under `references/` are inactive examples; installing the skill does not enable hooks. **Deployment status is client-specific:** a machine may already have separately configured hooks. Check its configuration and runtime evidence rather than inferring activation from source files or this document. See the [dated deployment evidence](design-v1.md#p1-部署记录与当前证据边界).
+**Source status:** the read-only adapter is included in this repository. JSON files under `references/` are inactive examples; installing the skill does not enable hooks. **Deployment status is client-specific:** a machine may already have separately configured hooks. Check its configuration and runtime evidence rather than inferring activation from source files or this document. See the [deployment verification boundaries](design-v1.md#p1-部署状态的核验边界).
 
 This document does not approve edits to user-level Codex or Claude configuration, project rules, remote repositories or installed skill links.
 

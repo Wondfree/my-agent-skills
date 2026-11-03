@@ -1,6 +1,6 @@
 ---
 name: git-lifecycle
-description: Use when auditing Git branches, worktrees or submodules, reviewing AI-created temporary Git resources, or checking repositories before or after an AI coding task.
+description: Use when auditing Git branches, worktrees or submodules, planning their cleanup or closeout, or reviewing stale or AI-created Git resources before or after a coding task.
 ---
 
 # Git Lifecycle
