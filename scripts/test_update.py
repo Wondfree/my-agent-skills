@@ -100,7 +100,6 @@ def main() -> None:
         (scripts / "test_install.py").write_text("print('fixture install pass')\n")
         (seed / "rules").mkdir()
         (seed / "rules" / "agent-global.md").write_text("v1 approved global instructions\n")
-        (seed / "rules" / "reuse-first.md").write_text("v1 legacy entry\n")
         (seed / "README.md").write_text("baseline\n")
         baseline = commit(seed, "baseline")
         git(seed, "remote", "add", "origin", str(remote))
@@ -170,27 +169,12 @@ def main() -> None:
         run("bash", "scripts/update.sh", "--apply", cwd=client)
         assert git(client, "rev-parse", "HEAD") == docs_revision
 
-        # The currently active legacy global entry must use the same approval gate.
-        (seed / "rules" / "reuse-first.md").write_text("v2 legacy entry changed\n")
-        legacy_revision = commit(seed, "legacy instructions changed")
-        git(seed, "push")
-        legacy_block = run("bash", "scripts/update.sh", "--apply", cwd=client, expect=2)
-        assert "REFUSED: shared Instructions changed" in legacy_block.stderr
-        assert "v2 legacy entry changed" in legacy_block.stdout
-        assert git(client, "rev-parse", "HEAD") == docs_revision
-        assert (client / "rules" / "reuse-first.md").read_text() == "v1 legacy entry\n"
-        run("bash", "scripts/update.sh", "--apply",
-            "--approve-global-instructions", f"--approved-revision={legacy_revision}",
-            cwd=client)
-        assert git(client, "rev-parse", "HEAD") == legacy_revision
-        assert (client / "rules" / "reuse-first.md").read_text() == "v2 legacy entry changed\n"
-
         # Failed candidate validation must not update the current HEAD.
         (scripts / "validate_skills.py").write_text("raise SystemExit(3)\n")
         commit(seed, "invalid candidate")
         git(seed, "push")
         failure = run("bash", "scripts/update.sh", "--apply", cwd=client, expect=3)
-        assert git(client, "rev-parse", "HEAD") == legacy_revision
+        assert git(client, "rev-parse", "HEAD") == docs_revision
         assert "fixture validator pass" not in failure.stdout
         assert not git(client, "status", "--porcelain")
 
@@ -202,7 +186,7 @@ def main() -> None:
         dirty = run("bash", "scripts/update.sh", "--apply", cwd=client, expect=2)
         assert "working tree contains local changes" in dirty.stderr
         assert (client / "README.md").read_text() == "UNCOMMITTED LOCAL WORK\n"
-        assert git(client, "rev-parse", "HEAD") == legacy_revision
+        assert git(client, "rev-parse", "HEAD") == docs_revision
         git(client, "restore", "--", "README.md")  # temp fixture only
         run("bash", "scripts/update.sh", "--apply", cwd=client)
         assert git(client, "rev-parse", "HEAD") == valid_revision
@@ -223,7 +207,6 @@ def main() -> None:
     print(json.dumps({"passed": True, "tested": [
         "read-only status", "flag requires apply", "global change refusal",
         "full SHA required", "stale reviewed SHA rejected", "explicit global approval",
-        "legacy rule change refusal", "legacy rule explicit approval",
         "non-global fast-forward", "validation failure", "dirty checkout protection",
         "diverged checkout protection", "Git environment sanitization", "sentinel index unchanged",
         "offline local remote fixture"

@@ -77,7 +77,7 @@ See [workflow, comparison, limitations, and tests](docs/installer-v2.md).
 ./scripts/update.sh --apply  # Fetch, verify the incoming revision, fast-forward
 ```
 
-Link-mode installations reflect the updated checkout. The update refuses dirty or diverged Git working trees and validates the incoming revision before applying. Global Instructions changes (including the legacy `reuse-first.md`) require approval bound to an exact reviewed commit SHA; see [Agent Instructions bootstrap and update safeguards](docs/agent-instructions.md). If you edit a linked Skill on your Mac, that is a Git working tree change: **review first, obtain commit/push authorization, then commit and push if approved**; other machines can then update. A remote update never auto-commits your unreviewed changes.
+Link-mode installations reflect the updated checkout. The update refuses dirty or diverged Git working trees and validates the incoming revision before applying. Changes to `rules/agent-global.md` require approval bound to an exact reviewed commit SHA; see [Agent Instructions bootstrap and update safeguards](docs/agent-instructions.md). If you edit a linked Skill on your Mac, that is a Git working tree change: **review first, obtain commit/push authorization, then commit and push if approved**; other machines can then update. A remote update never auto-commits your unreviewed changes.
 
 To contribute a change, modify files **in this checkout**, run validation and review the exact diff; commit or push only after explicit Human authorization. Avoid editing `.system` Skills or vendoring external code without a license check.
 

@@ -54,11 +54,10 @@ if [[ "$approve_rules" == 1 && "$new" != "$expected_revision" ]]; then
   echo "REFUSED: upstream revision $new differs from explicitly reviewed $expected_revision." >&2
   exit 2
 fi
-# Legacy installations can still point at rules/reuse-first.md; protect
-# both current and transitional global instruction sources.
-if ! git -C "$repo" diff --quiet "$current" "$new" -- rules/agent-global.md rules/reuse-first.md; then
+# Changes to the shared global instruction source require explicit review.
+if ! git -C "$repo" diff --quiet "$current" "$new" -- rules/agent-global.md; then
   echo "Incoming global Instructions change at revision $new (review before enabling):"
-  git -C "$repo" diff "$current" "$new" -- rules/agent-global.md rules/reuse-first.md
+  git -C "$repo" diff "$current" "$new" -- rules/agent-global.md
   if [[ "$approve_rules" != 1 ]]; then
     echo "REFUSED: shared Instructions changed; review commit $new and rerun with --apply --approve-global-instructions --approved-revision=$new." >&2
     exit 2

@@ -5,7 +5,7 @@
 - `rules/agent-global.md` is the versioned SSOT for short **L0+L1** global instructions used by both Codex and Claude Code. It contains portable rules, not secrets, user profiles, or a directory-specific project state.
 - `skills/reuse-first/SKILL.md` and other Skills keep detailed on-demand workflows. Skills do not supersede Human approval or project rules.
 - Project `AGENTS.md` (and optional Claude `CLAUDE.md` bridge) remains independently owned by that project's Git repository. **P1 does not rewrite any project rules.**
-- `rules/reuse-first.md` is temporarily retained as a **legacy global entry** while existing symlinks on older installations still point to it. Do not maintain new shared policy in this file. Remove or replace this compatibility path only after every affected installation has explicitly migrated and passed behavioral checks.
+- Global entries use `rules/agent-global.md`; no separate compatibility source is distributed.
 
 ## First-time setup (macOS / Linux)
 
@@ -39,9 +39,9 @@ Each points to the *same file* `rules/agent-global.md` in the local checkout. Do
 
 **Important:** If Codex has an `AGENTS.override.md` in its global config directory, Codex may load it instead of `AGENTS.md`. The installer intentionally refuses an Instructions installation when that override exists, even with `--adopt-existing`; the user must inspect and resolve the existing override independently. Also, combined Skills + Instructions installation rejects a global target nested under a managed Skill destination, and any Instructions home containing `..` path traversal, to prevent a newly installed symlink redirecting writes into this repository.
 
-## Safe migration from an old installation
+## Safe replacement of existing instructions
 
-A current entry can already point to `rules/reuse-first.md` or contain locally customized content. The installer **must refuse** to overwrite it without explicit adoption. Follow this sequence:
+A current entry can point to another source or contain locally customized content. The installer **must refuse** to overwrite it without explicit adoption. Follow this sequence:
 
 1. Read the existing entry and decide whether any machine-local content needs to remain separate. Keep credentials and private data outside the shared repo.
 2. Preview migration with `python3 scripts/install.py --instructions-only --adopt-existing --dry-run`.
@@ -49,11 +49,11 @@ A current entry can already point to `rules/reuse-first.md` or contain locally c
 4. Inspect original entry backups at `~/.codex/.instruction-backups/` and `~/.claude/.instruction-backups/` (or the corresponding override homes).
 5. Verify saved paths/content **and** start fresh Codex and Claude Code sessions to verify load and actual triggered behavior.
 
-The existing source file remains available until the migration and verification are complete. Nothing automatically rewrites the old global path. **Never use the installer's adoption flag solely to silence an unexpected conflict.**
+Preserve any previous source needed for rollback until replacement and verification are complete. Nothing automatically rewrites an existing global entry. **Never use the installer's adoption flag solely to silence an unexpected conflict.**
 
 ## Update safety
 
-The existing `scripts/update.sh` checks Git state; it refuses dirty or diverged branches and validates incoming content before a fast-forward. If the incoming revision changes `rules/agent-global.md` **or the still-active legacy** `rules/reuse-first.md`, `--apply` shows the diff and its **full commit SHA**, then refuses to update unless explicit approval is bound to that exact SHA. The offline `python3 -B scripts/test_update.py` regression test (also run in CI) covers both rule paths, stale approval, environment isolation and safe failures.
+The existing `scripts/update.sh` checks Git state; it refuses dirty or diverged branches and validates incoming content before a fast-forward. If the incoming revision changes `rules/agent-global.md`, `--apply` shows the diff and its **full commit SHA**, then refuses to update unless explicit approval is bound to that exact SHA. The offline `python3 -B scripts/test_update.py` regression test (also run in CI) covers global-rule approval, stale approval, environment isolation and safe failures.
 
 ```sh
 ./scripts/update.sh                 # Local status; no fetch
@@ -83,7 +83,7 @@ A checkout with multiple Git worktrees must be updated carefully: the new revisi
 | Triggered | representative Reuse-First and Human Gate prompts trigger appropriate rules |
 | Behavior PASS | AI actually performs proportional comparison, protects dirty trees, and honors project gates |
 | Negative | ordinary bug fix does not trigger broad survey; unknown local config is not overwritten |
-| Migration | legacy link and custom file are refused by default and backed up when explicitly adopted |
+| Replacement | links to other sources and custom files are refused by default and backed up when explicitly adopted |
 | Portability | installer works under an alternate simulated HOME/config paths; an actual second computer remains a separate acceptance test |
 | Failure | missing source, dirty update, incompatible entry, and offline/permission errors are reported, not silently ignored |
 
@@ -168,6 +168,18 @@ Fresh CLI sessions used an isolated temporary configuration linking to **this ca
 **Cross-project load probe:** Fresh isolated Codex sessions in `Personal System` and `GameChat` each returned the exact candidate title `Evidence-First → Validate the Gap → Stop When Sufficient` and correctly described project rules vs the global L0 safety floor. This is evidence of candidate instruction visibility, **not** proof of end-to-end project behavior.
 
 **Independent Review:** A separate read-only Codex reviewer inspected the actual three-file diff and adjacent instructions; **PASS WITH NOTES**, no actionable P0–P3 findings. This is a candidate review only. Static validation, install regressions and update safety regressions also passed. Live Claude Code behavior for this revision, installation on a second machine, account-specific Scheduled permissions and extended reliability remain **NOT VERIFIED**. Do not convert this checkpoint to deployed PASS, commit, merge or push without explicit Human authorization.
+
+## Standalone skill revision — 2026-11-03
+
+**Scope:** The entrypoint is 647 words (previously 1,644); detailed review criteria and generic calibration examples are now relative, conditionally loaded references. Trigger impact, approval gates, optional knowledge catalogs, reviewer handoff and unavailable-reviewer behavior are defined without depending on a separate global rule. Also retire the unused compatibility source and its dedicated update checks, preserving current global approval and installer backup/refusal safeguards. Synchronize the wizard's source-excerpt lookup with the new first sentence to retain its existing English/Chinese presentation. Historical trial records above describe earlier revisions and are not new acceptance evidence.
+
+**Baseline probe:** A separate agent read an isolated copy of the previous package. It handled the approved SDK fix and validation stopping correctly, but needed its own fallback for the undefined drift check and unavailable-reviewer procedure. The package also left catalog handoffs undefined. These are observed instruction gaps, not a claim that every prior scenario failed.
+
+**Revised-package review:** A fresh, separate Codex reviewer (`revised_skill_review`) inspected all three package files and applied five fictional scenarios: approved adapter repair, collector comparison with unavailable review, repeated outage-test proposals, a small utility dependency, and production migration without backup/restore evidence. No actionable findings. This is independent package review plus prompt-only scenario evidence, not real service execution or proof of long-term behavior.
+
+**PR checks:** The isolated staged-file candidate passed repository structure/link/syntax validation, installation, all 33 wizard tests, update approval tests, all 16 uninstaller tests, Git lifecycle inventory and Hook bridge regressions, static audits and whitespace checks. The Hook test required execution outside the sandbox so it could inspect termination of its temporary child process with `ps`. A separate reviewer (`pr_diff_review`) examined the complete PR diff and the wizard lookup correction; no actionable findings. The bundled Skill Creator validator requires unavailable `PyYAML`; no dependency was installed. The prior mixed-worktree wizard count failure remains attributable to an unrelated additional local skill, which is excluded from this candidate.
+
+**State and next step:** The runtime skill entries already link to this checkout; no reinstall or global-entry migration was performed. Changes are prepared for the user-authorized commit and PR; unrelated local edits remain separate. Whole-repository privacy/visibility review, fresh live-client loading tests and unrelated project-rule changes are outside this checkpoint; historical project examples above were preserved.
 
 ## Notes for P2
 

@@ -167,10 +167,11 @@ def main() -> None:
         execute(*options)  # idempotent
         assert not (codex_home / "skills").exists()
 
-        # Legacy links are protected; only explicitly adopted replacements are backed up.
+        # Links to other sources are protected; adopted replacements are backed up.
         codex_target = codex_home / "AGENTS.md"
         codex_target.unlink()
-        old_rule = ROOT / "rules" / "reuse-first.md"
+        old_rule = root / "previous-global.md"
+        old_rule.write_text("Previous global instructions - preserve")
         codex_target.symlink_to(old_rule)
         claude_target = claude_home / "CLAUDE.md"
         claude_target.unlink()
@@ -184,6 +185,9 @@ def main() -> None:
         assert codex_target.resolve() == instruction_source.resolve()
         assert claude_target.resolve() == instruction_source.resolve()
         assert len(list((codex_home / ".instruction-backups").glob("AGENTS.md-*"))) == 1
+        saved_codex = next((codex_home / ".instruction-backups").glob("AGENTS.md-*"))
+        assert saved_codex.is_symlink() and saved_codex.resolve() == old_rule.resolve()
+        assert saved_codex.read_text() == "Previous global instructions - preserve"
         assert len(list((claude_home / ".instruction-backups").glob("CLAUDE.md-*"))) == 1
         saved_claude = next((claude_home / ".instruction-backups").glob("CLAUDE.md-*"))
         assert saved_claude.read_text() == "PRIVATE user rule - preserve"
@@ -209,7 +213,7 @@ def main() -> None:
                    for p in (copied_codex / ".instruction-backups").glob("AGENTS.md-*"))
     print(json.dumps({"passed": True, "tested": ["dry-run", "symlink", "idempotency",
           "refuse overwrite", "backup on adoption", "copy mode", "local changes preserved",
-          "global instructions opt-in", "legacy migration", "instruction backups",
+          "global instructions opt-in", "existing instruction replacement", "instruction backups",
           "instruction copy refresh", "git-lifecycle opt-in default",
           "combined default excludes git-lifecycle", "explicit opt-in installs"]}))
 
