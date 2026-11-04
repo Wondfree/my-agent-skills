@@ -40,7 +40,7 @@ SKILL_BLURBS = {
         "Find files left by a Mac app; removal only happens after your approval.",
         "查找 Mac 应用及其残留文件，删除前会征求你的确认。",
     ),
-    "Apply this before committing to a consequential design, migration, reusable capability or technical route.": (
+    "Establish the outcome, consider smaller fixes, then compare reuse with building.": (
         "Help your AI assistant check existing solutions before building something new.",
         "帮助 AI 优先检查现有方案，避免重复开发。",
     ),
