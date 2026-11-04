@@ -1,6 +1,6 @@
 # My Agent Skills
 
-A private-first, portable repository for **self-maintained** Agent Skills. The files in `skills/` are the canonical source (SSOT). Local agent directories are runtime installations, not independent sources of truth.
+A portable repository for **self-maintained** Agent Skills. The files in `skills/` are the canonical source (SSOT). Local agent directories are runtime installations, not independent sources of truth.
 
 ## Included
 
@@ -111,11 +111,11 @@ See the [P0/P1–P3 design and safety gates](skills/git-lifecycle/references/des
 
 ## Privacy, ownership and publishing
 
-The GitHub repository is intended to be **Private at first**. Its contents should contain no cookies, credentials, real customer data, video/source media, or private personal logs. Never blindly copy the whole installed Skills tree into this repo. Check ownership/licensing before adding any external Skill. Before publishing publicly, perform a separate privacy/license/security review and deliberately choose a license; a private repository by itself is not a safety boundary for secrets.
+This repository is **public** by the owner's decision. Publish reusable instructions and generalized examples; keep private project names, machine-specific runtime status, cookies, credentials, real customer data, video/source media and personal logs out of published content. Never blindly copy the whole installed Skills tree into this repo. Review new content for privacy, security, ownership and licensing before publication; adding external Skills or choosing a license requires a separate decision. Public visibility does not establish that a whole-repository or Git-history audit has been completed.
 
 ## First-time remote setup
 
-If the remote does not exist yet, create a **blank private GitHub repository** named `my-agent-skills` under your own account, **without** auto-generating a README/license/.gitignore. Then configure and push this local checkout:
+If setting up a separate remote, choose its visibility explicitly and create a **blank GitHub repository** named `my-agent-skills` under your own account, **without** auto-generating a README/license/.gitignore. Then configure and push this local checkout:
 
 ```bash
 cd my-agent-skills
