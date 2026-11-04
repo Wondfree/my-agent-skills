@@ -7,8 +7,6 @@ import importlib.util
 import json
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 
 
@@ -18,9 +16,16 @@ SKIP = {"__pycache__", ".git", ".DS_Store"}
 EXT = {".md", ".py", ".yaml", ".yml", ".sh", ".bash", ".zsh", ".txt", ".json"}
 FRONT = re.compile(r"\A---\n(.*?)\n---(?:\n|$)", re.S)
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 SENSITIVE_FILENAME = re.compile(r"(?:^|/)(?:\.env(?:\..*)?|id_(?:rsa|ed25519)|.*\.(?:pem|p12|pfx|key))$", re.I)
 CREDENTIAL = re.compile(r"gh(?:p|o|s|u|r)_[A-Za-z0-9]{24,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")
+
+
+# Reuse the installable audit's checks so CI and the reviewer agree on code
+# examples and declared shell dialects. Importing it never invokes its CLI.
+_audit_spec = importlib.util.spec_from_file_location(
+    "skill_audit_checks", SOURCE / "skill-reviewer/scripts/audit_skill.py")
+audit_checks = importlib.util.module_from_spec(_audit_spec)
+_audit_spec.loader.exec_module(audit_checks)
 
 
 def check_skill(path: Path) -> list[str]:
@@ -71,20 +76,17 @@ def check_skill(path: Path) -> list[str]:
                 ast.parse(content, filename=rel)
             except SyntaxError as ex:
                 errors.append(f"{rel}:{ex.lineno} invalid Python syntax: {ex.msg}")
-        if file.suffix in {".sh", ".bash", ".zsh"}:
-            shell = "sh" if file.suffix == ".sh" else "bash"
-            if shutil.which(shell):
-                check = subprocess.run([shell, "-n", str(file)], capture_output=True, text=True)
-                if check.returncode:
-                    errors.append(f"{rel}: invalid {shell} syntax {check.stderr[:150]}")
+        if file.suffix.lower() in {".sh", ".bash", ".zsh"}:
+            for observation in audit_checks.shell_syntax_findings(file, content, rel):
+                message = f"{rel}: {observation['detail']}"
+                if observation["severity"] == "P1":
+                    errors.append(message)
+                else:
+                    print(f"Warning: {message}", file=sys.stderr)
         if file.suffix == ".md":
-            for lineno, line in enumerate(content.splitlines(), 1):
-                for match in LINK.finditer(line):
-                    reference = match.group(1).split("#", 1)[0].strip()
-                    if not reference or reference.startswith(("https:", "http:", "mailto:", "#", "//")) or "<" in reference or ">" in reference:
-                        continue
-                    if not (file.parent / reference).exists():
-                        errors.append(f"{rel}:{lineno} broken relative markdown link {reference}")
+            for lineno, reference in audit_checks.markdown_links(content):
+                if not (file.parent / reference).exists():
+                    errors.append(f"{rel}:{lineno} broken relative markdown link {reference}")
     return errors
 
 

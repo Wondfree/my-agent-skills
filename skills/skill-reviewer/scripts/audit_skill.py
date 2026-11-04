@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -25,6 +27,68 @@ MD_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 
 def finding(path: str, line: int, severity: str, kind: str, detail: str) -> dict:
     return {"severity": severity, "kind": kind, "path": path, "line": line, "detail": detail}
+
+
+def markdown_links(content: str):
+    """Yield inline Markdown link destinations outside fenced/inline code.
+
+    Preserve newlines while masking examples so diagnostics retain source lines.
+    This is a lightweight scanner, not a complete Markdown parser.
+    """
+    lines = []
+    fence_char, fence_length = "", 0
+    for line in content.splitlines(keepends=True):
+        fence = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
+        if fence_char:
+            if (fence and fence.group(1)[0] == fence_char
+                    and len(fence.group(1)) >= fence_length and not fence.group(2).strip()):
+                fence_char, fence_length = "", 0
+            lines.append("\n" if line.endswith("\n") else "")
+        elif fence and (fence.group(1)[0] != "`" or "`" not in fence.group(2)):
+            fence_char, fence_length = fence.group(1)[0], len(fence.group(1))
+            lines.append("\n" if line.endswith("\n") else "")
+        else:
+            lines.append(line)
+    visible = re.sub(r"(?<![\\`])(`+)(?!`)((?:(?!\n[ \t]*\n).)*?)(?<!`)\1(?!`)",
+                     lambda m: re.sub(r"[^\n]", " ", m.group(0)), "".join(lines), flags=re.S)
+    for num, line in enumerate(visible.splitlines(), start=1):
+        for match in MD_LINK.finditer(line):
+            ref = match.group(1).split("#", 1)[0].strip()
+            if (ref and not ref.startswith(("http:", "https:", "mailto:", "//"))
+                    and "<" not in ref and ">" not in ref):
+                yield num, ref
+
+
+def shell_syntax_findings(path: Path, content: str, rel: str) -> list[dict]:
+    """Select a known shell without executing the target or its shebang flags."""
+    shell = {".sh": "sh", ".bash": "bash", ".zsh": "zsh"}[path.suffix.lower()]
+    first_line = content.splitlines()[0] if content else ""
+    if first_line.startswith("#!"):
+        try:
+            words = shlex.split(first_line[2:])
+        except ValueError:
+            words = []
+        if words and Path(words[0]).name == "env":
+            words = words[1:]
+            if words and words[0] == "-S":
+                words = words[1:]
+        shell = Path(words[0]).name if words else ""
+        if shell not in {"sh", "bash", "dash", "zsh", "ksh"}:
+            return [finding(rel, 1, "INFO", "shell_unchecked",
+                            "Unsupported shebang; syntax not checked (review manually)")]
+    executable = shutil.which(shell)
+    if not executable:
+        return [finding(rel, 1, "INFO", "shell_unchecked",
+                        f"Interpreter {shell!r} unavailable; syntax not checked")]
+    # Disable inherited shell startup hooks; use only syntax-check flags.
+    environment = os.environ.copy()
+    environment.update({"BASH_ENV": os.devnull, "ENV": os.devnull})
+    command = [executable] + (["-f"] if shell == "zsh" else []) + ["-n", str(path.resolve())]
+    result = subprocess.run(command, capture_output=True, text=True, env=environment)
+    if result.returncode:
+        return [finding(rel, 1, "P1", "shell_syntax",
+                        f"{shell} syntax check failed: {result.stderr.strip()[:300]}")]
+    return []
 
 
 def scan_folder(target: Path) -> list[dict]:
@@ -72,25 +136,17 @@ def scan_folder(target: Path) -> list[dict]:
                                                 f"Potential runtime-specific path {m.group(0)!r}; verify whether it is a harmless example"))
             if not (f.suffix == ".py" and "re.search(" in line) and re.search(r"\[TODO:[^\]]*\]", line):
                 findings.append(finding(rel, num, "P2?", "todo", "Unresolved TODO marker"))
-            if f.suffix == ".md":
-                for m in MD_LINK.finditer(line):
-                    ref = m.group(1).split("#", 1)[0].strip()
-                    if not ref or ref.startswith(("http:", "https:", "mailto:", "//")):
-                        continue
-                    if "<" in ref or ">" in ref:
-                        continue
-                    if not (f.parent / ref).exists():
-                        findings.append(finding(rel, num, "P2", "broken_reference", f"Markdown link missing: {ref}"))
+        if f.suffix == ".md":
+            for num, ref in markdown_links(content):
+                if not (f.parent / ref).exists():
+                    findings.append(finding(rel, num, "P2", "broken_reference", f"Markdown link missing: {ref}"))
         if f.suffix == ".py":
             try:
                 ast.parse(content, filename=rel)
             except SyntaxError as e:
                 findings.append(finding(rel, e.lineno or 1, "P1", "python_syntax", f"Python syntax error: {e.msg}"))
-        elif f.suffix in {".sh", ".bash"} and shutil.which("sh"):
-            result = subprocess.run(["sh", "-n", str(f)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode:
-                findings.append(finding(rel, 1, "P1", "shell_syntax",
-                                        f"Shell syntax check failed: {result.stderr.strip()[:300]}"))
+        elif f.suffix.lower() in {".sh", ".bash", ".zsh"}:
+            findings.extend(shell_syntax_findings(f, content, rel))
     return findings
 
 

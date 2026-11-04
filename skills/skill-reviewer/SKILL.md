@@ -29,11 +29,11 @@ python3 "$REVIEWER_DIR/scripts/audit_skill.py" "$TARGET_SKILL"
 python3 "<skill creator directory>/scripts/quick_validate.py" "$TARGET_SKILL"
 ```
 
-The audit uses Python 3.9+ standard library and has `--json` for machine-readable observations. It is **non-mutating**: it does not `compileall`, modify caches, download dependencies, or invoke target code. Results are leads, not a replacement for human/agent review.
+The audit uses Python 3.9+ standard library and has `--json` for machine-readable observations. Exit 1 means a blocking P1/P2 observation; exit 0 means none were emitted, not review approval. `P2?` denotes an unconfirmed lead and does not block. Shell syntax checks use a recognized shebang, falling back to `.sh`/`.bash`/`.zsh`; an unsupported or unavailable interpreter produces an INFO notice instead of a syntax verdict. It is **non-mutating**: it does not `compileall`, modify caches, download dependencies, or invoke target code. Results are leads, not a replacement for human/agent review.
 
 ## Boundaries and handoff
 
-- Review of regular code diffs belongs to `review-agent`; review of skill-specific contracts belongs here. When a skill includes code changes, both perspectives may be useful but neither automatically delegates to the other.
+- Review of regular code diffs may use `review-agent` if available; otherwise the main agent performs that review; review of skill-specific contracts belongs here. When a skill includes code changes, both perspectives may be useful but neither automatically delegates to the other.
 - Creation, repair and refactoring belong to `skill-creator` or the main execution agent. The reviewer proposes focused corrections only.
 - Avoid modifying built-in `.system` skills; they may be replaced by upgrades. Never embed one specific workspace or one user's home as a universal standard.
-- Completion means you inspected the real files and recorded results, not merely that `quick_validate.py` returned success.
+- Completion means you inspected the real files and recorded results. If the optional creator validator or its dependencies are missing, report that gap and continue the available checks without installing anything.
