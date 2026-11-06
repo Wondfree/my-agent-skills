@@ -5,7 +5,7 @@ description: Safely discover and uninstall a macOS application by app name or Bu
 
 # macOS App Uninstaller
 
-Use when the user wants to inspect or uninstall a named macOS application, including without an App Cleaner screenshot. The Skill provides a read-only inventory phase and a separate confirmed Trash phase. Finding files, scanning them, or a previous general preference is **not** authorization to delete them.
+Use when the user wants to inspect or uninstall a named macOS application, with or without a screenshot from an app-cleaner utility. The skill provides a read-only inventory phase and a separate confirmed Trash phase. Finding files, scanning them, or a previous general preference is **not** authorization to delete them.
 
 ## Workflow
 
@@ -15,9 +15,9 @@ Use when the user wants to inspect or uninstall a named macOS application, inclu
 4. Report **every** candidate and its ID, exact path, category, size, evidence, and confidence (high or review). Flag likely user data (sessions, databases, preferences, account information). Examine folder names if needed, never dump private contents or secrets.
 5. Mark uncertain or shared paths as review-only. Exclude macOS Recent Documents / sharedfilelist from deletion **by default**. Never attempt to evade OS privacy controls or permissions.
 6. **Ask for explicit user approval of the exact numbered paths** before any deletion. Warn that removing session/history folders can destroy user state. On a preserve-data request, leave those IDs out. Scanning consent is never deletion consent.
-7. Only after approval, execute the separate trash command with manifest, matching plan_id, and **only the explicitly approved high-confidence IDs**. The script re-checks path, ownership, device/inode/mtime, nested directory metadata and running-app state before invoking macOS FileManager.trashItem. If anything changed, stop and rescan/re-approve. The Skill must never retry via sudo, rm, permission changes, or other workarounds itself.
+7. Only after approval, execute the separate trash command with manifest, matching plan_id, and **only the explicitly approved high-confidence IDs**. The script re-checks path, ownership, device/inode/mtime, nested directory metadata and running-app state before invoking macOS FileManager.trashItem. If anything changed, stop and rescan/re-approve. The skill must never retry via sudo, rm, permission changes, or other workarounds itself.
 8. Verify which sources vanished and which destinations landed in Trash. Report successes, failures and remaining files distinctly. Never empty Trash automatically.
-9. **Manual terminal fallback requested by the user:** After safe Trash fails, use the *read-only* `manual-preview` subcommand on a fresh, exact approved manifest and IDs. **Never hand-write, interpolate, or infer `sudo rm -rf` commands directly from scanner text or screenshots**; copy only complete lines printed by the separate [deletion safety guard](scripts/deletion_guard.py) through `manual-preview`. The program rejects roots and system parents, noncanonical paths, wildcards, symlinks, other applications, uncertain/shared categories, unapproved iCloud data, incomplete scans, changed metadata, and missing identities. It may offer verified root-owned app bundles for manual removal, but not ordinary review-only resources. If any selected item fails, no commands are output. Show output in one copyable shell block, one exact absolute path per line. The agent must **never run** these commands. Warn that user execution permanently deletes data, does not pass through Trash, and `sudo` may still be blocked by macOS. Shared Group Containers and other excluded categories require further investigation; do not bypass the guard or TCC/SIP. If an already approved target's scan metadata changes, rescan and get updated approval.
+9. **Manual terminal fallback requested by the user:** After safe Trash fails, read [manual fallback](references/safety-and-coverage.md#user-run-manual-fallback). Use only `manual-preview` output from a fresh, exact approved manifest; never hand-compose or execute permanent-deletion commands. If a scan is truncated, hand the exact path back to the user for inspection and removal in Finder.
 
 ## Commands
 
@@ -34,7 +34,7 @@ The scanner recognizes native macOS app bundles and wrapped iOS-on-Mac `Wrapper/
     # Read-only generation; copy the resulting lines verbatim. Never run them as an agent.
     python3 "$SKILL_DIR/scripts/app_uninstaller.py" manual-preview --manifest "<plan.json>" --confirm "<plan_id>" --ids "1,2"
 
-    # Before releasing Skill changes:
+    # Before releasing skill changes:
     python3 -m unittest discover -s "$SKILL_DIR/scripts" -p "test_*.py"
 
 Requirements: macOS and Python 3.9+ (scanner). Trash phase also requires Swift / Apple command line tools; [trash.swift](scripts/trash.swift) is bundled. No network fetches, installation, or privileged execution is necessary. Read [safety and coverage notes](references/safety-and-coverage.md) for missed files, macOS permission errors and mixed-confidence cases.

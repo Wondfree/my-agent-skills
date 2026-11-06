@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Offline, non-mutating tests. The trash subprocess is always mocked."""
 import importlib.util
+from contextlib import redirect_stdout, redirect_stderr
+import io
 import json
 import os
+import plistlib
 from pathlib import Path
 import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -188,6 +192,79 @@ class TrashSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "changed manifest"):
                 self.call_trash()
             backend.assert_not_called()
+
+    def test_both_commands_reject_loose_or_duplicate_ids(self):
+        for raw in ("", "0", "01", "+1", " 1", "1, 2", "1,", "1,1", "-1", "١"):
+            for command in (module.trash, module.manual_preview):
+                with self.subTest(raw=raw, command=command.__name__), \
+                     mock.patch.object(module.Path, "home", return_value=self.home), \
+                     mock.patch.object(module.subprocess, "run") as backend:
+                    self.args.ids = raw
+                    with self.assertRaises(ValueError):
+                        command(self.args)
+                    backend.assert_not_called()
+
+    def scan_fixture(self, app):
+        output = io.StringIO()
+        with mock.patch.object(module.Path, "home", return_value=self.home), \
+             mock.patch.object(module, "installed_apps", return_value=[app]), \
+             mock.patch.object(module, "SYSTEM_AREAS", {}), \
+             mock.patch.object(module.Path, "glob", return_value=[]), \
+             redirect_stdout(output):
+            module.scan(SimpleNamespace(name=None, bundle_id=app["bundle_id"], output=None))
+        self.plan = json.loads(output.getvalue())
+        self.save()
+        self.args.confirm = self.plan["plan_id"]
+
+    def verify_both_commands(self, paths):
+        self.args.ids = ",".join(str(item["id"]) for item in self.plan["items"])
+        result = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(module.subprocess, "run", return_value=result) as backend:
+            self.assertEqual(self.call_trash(), 0)
+            self.assertEqual(set(backend.call_args.args[0][3:]), set(map(str, paths)))
+        output = io.StringIO()
+        with mock.patch.object(module.Path, "home", return_value=self.home), \
+             redirect_stdout(output), redirect_stderr(io.StringIO()):
+            self.assertEqual(module.manual_preview(self.args), 0)
+        self.assertEqual(len(output.getvalue().splitlines()), len(paths))
+        self.assertTrue(all(path.exists() for path in paths))
+
+    def test_vendor_app_discovery_scan_trash_and_preview(self):
+        installed = self.home / "Applications" / "Vendor" / "Example Editor.app"
+        contents = installed / "Contents"
+        contents.mkdir(parents=True)
+        with (contents / "Info.plist").open("wb") as fp:
+            plistlib.dump({"CFBundleIdentifier": "com.example.Editor"}, fp)
+        apps = module.installed_apps([self.home / "Applications"])
+        self.assertEqual(len(apps), 1)
+        self.scan_fixture(apps[0])
+        self.assertTrue(all(item["confidence"] == "high" for item in self.plan["items"]))
+        self.verify_both_commands([installed, self.target])
+
+    def test_new_user_locations_scan_trash_and_preview(self):
+        paths = [self.target]
+        names = {
+            "Cookies": "com.example.Editor.binarycookies",
+            "Application Scripts": "com.example.Editor",
+            "Preferences/ByHost": "com.example.Editor.FE841D49-E3B6-4F86-ADE8-0976E13186D8.plist",
+        }
+        for directory, name in names.items():
+            target = self.home / "Library" / directory / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("fixture", encoding="utf8")
+            paths.append(target)
+        self.scan_fixture(self.plan["app"])
+        self.assertEqual({item["path"] for item in self.plan["items"]}, set(map(str, paths)))
+        self.assertTrue(all(item["confidence"] == "high" for item in self.plan["items"]))
+        self.verify_both_commands(paths)
+
+    def test_byhost_requires_exact_bundle_and_uuid(self):
+        for name in ("com.example.Editor.plist", "com.example.Editor.helper.plist",
+                     "com.example.Editor.not-a-host.plist",
+                     "com.other.Editor.FE841D49-E3B6-4F86-ADE8-0976E13186D8.plist"):
+            with self.subTest(name=name):
+                self.assertIsNone(module.residue_match(name, "com.example.Editor",
+                                                      ["Example Editor"], "byhost-preferences"))
 
 
 if __name__ == "__main__":

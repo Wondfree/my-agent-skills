@@ -26,7 +26,7 @@ jobs:
       - name: Test global instructions update approval gate
         run: python3 -B scripts/test_update.py
       - name: Test safe macOS uninstall planning (mocked Trash)
-        run: python3 -B skills/macos-app-uninstaller/scripts/test_uninstaller.py
+        run: python3 -B -m unittest discover -s skills/macos-app-uninstaller/scripts -p 'test_*.py'
       - name: Test read-only Git lifecycle inventory
         run: python3 -B skills/git-lifecycle/scripts/test_git_lifecycle.py
       - name: Test inert Git lifecycle hook bridge

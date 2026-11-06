@@ -16,6 +16,9 @@ _USER_LOCATIONS = {
     "app-data": "Application Support",
     "cache": "Caches",
     "preferences": "Preferences",
+    "byhost-preferences": "Preferences/ByHost",
+    "cookies": "Cookies",
+    "application-scripts": "Application Scripts",
     "logs": "Logs",
     "sandbox": "Containers",
     "saved-state": "Saved Application State",
@@ -26,6 +29,15 @@ _FORBIDDEN_PARTS = {"sharedfilelist", "recent documents", "mobile documents", "c
 # A full shell-quoted name can safely contain spaces and apostrophes, but we
 # deliberately refuse active shell syntax/globs rather than trying to interpret it.
 _UNSAFE_NAME = re.compile(r"[\x00-\x1f\x7f*?\[\]`$;|&<>\\\"]")
+
+
+def app_location_allowed(path: Path, home: Path) -> bool:
+    """Allow an app directly under Applications or one non-app vendor folder."""
+    if path.suffix.casefold() != ".app" or not path.stem.strip():
+        return False
+    roots = (Path("/Applications"), home / "Applications")
+    return (path.parent in roots or
+            (path.parent.parent in roots and path.parent.suffix.casefold() != ".app"))
 
 
 def assert_safe_path(raw: str, category: str, home: Path, bundle_id: str) -> Path:
@@ -58,10 +70,8 @@ def assert_safe_path(raw: str, category: str, home: Path, bundle_id: str) -> Pat
         raise ValueError("Protected root or parent directory")
 
     if category == "app":
-        if path.parent not in (Path("/Applications"), home / "Applications"):
+        if not app_location_allowed(path, home):
             raise ValueError("App outside permitted Applications location")
-        if path.suffix.casefold() != ".app" or not path.stem.strip():
-            raise ValueError("Invalid app bundle target")
     elif category == "temp-cache":
         if not _TEMP_CACHE.fullmatch(raw):
             raise ValueError("Cache outside permitted macOS cache directory")
@@ -88,6 +98,6 @@ def assert_safe_path(raw: str, category: str, home: Path, bundle_id: str) -> Pat
     return path
 
 
-def format_manual_command(path: Path) -> str:
+def format_manual_command(path: Path, *, needs_sudo: bool = False) -> str:
     """Generate a user-visible command; never run it."""
-    return "sudo rm -rf -- " + shlex.quote(str(path))
+    return ("sudo " if needs_sudo else "") + "rm -rf -- " + shlex.quote(str(path))
