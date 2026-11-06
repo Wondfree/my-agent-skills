@@ -8,6 +8,7 @@ from pathlib import Path
 import plistlib
 import shlex
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -32,6 +33,8 @@ class GuardTests(unittest.TestCase):
         path = self.check(self.file)
         command = guard.format_manual_command(path)
         self.assertEqual(shlex.split(command),
+                         ["rm", "-rf", "--", str(self.file)])
+        self.assertEqual(shlex.split(guard.format_manual_command(path, needs_sudo=True)),
                          ["sudo", "rm", "-rf", "--", str(self.file)])
         self.assertTrue(self.file.exists())
 
@@ -89,6 +92,26 @@ class GuardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check(self.prefs / "com.example.Reader.missing.plist")
 
+    def test_vendor_location_boundaries(self):
+        root = self.home / "Applications"
+        for relative in ("Vendor", "Vendor/Deep/Reader.app", "Other.app/Reader.app"):
+            target = root / relative
+            target.mkdir(parents=True, exist_ok=True)
+            with self.subTest(path=target), self.assertRaises(ValueError):
+                self.check(target, "app")
+            self.assertFalse(app.allowed_source(target, "app", self.home))
+        outside = self.home / "outside"
+        (outside / "Reader.app").mkdir(parents=True)
+        (root / "LinkedVendor").symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "Symlink"):
+            self.check(root / "LinkedVendor" / "Reader.app", "app")
+        self.assertFalse(app.allowed_source(root / "LinkedVendor" / "Reader.app", "app", self.home))
+
+    def test_new_categories_require_exact_parent(self):
+        for category in ("cookies", "application-scripts", "byhost-preferences"):
+            with self.subTest(category=category), self.assertRaises(ValueError):
+                self.check(self.file, category)
+
 
 class PreviewTests(unittest.TestCase):
     def setUp(self):
@@ -132,7 +155,7 @@ class PreviewTests(unittest.TestCase):
         result, output = self.preview()
         self.assertEqual(result, 0)
         self.assertEqual(shlex.split(output.strip()),
-                         ["sudo", "rm", "-rf", "--", str(self.target)])
+                         ["rm", "-rf", "--", str(self.target)])
         self.assertTrue(self.target.exists())
 
     def test_manifest_id_and_changed_file_guard(self):
@@ -198,6 +221,32 @@ class PreviewTests(unittest.TestCase):
                 self.preview()
         with mock.patch.object(app, "owned_uuid_container", return_value=True):
             self.assertEqual(self.preview()[0], 0)
+
+    def test_root_owned_app_preview_uses_sudo(self):
+        installed = self.home / "Applications" / "Vendor" / "Example Reader.app"
+        contents = installed / "Contents"
+        contents.mkdir(parents=True)
+        with (contents / "Info.plist").open("wb") as fp:
+            plistlib.dump({"CFBundleIdentifier": "com.example.Reader"}, fp)
+        original_lstat = Path.lstat
+
+        def root_owned(path, *args, **kwargs):
+            stat = original_lstat(path, *args, **kwargs)
+            if path == installed:
+                values = {name: getattr(stat, name) for name in dir(stat) if name.startswith("st_")}
+                values["st_uid"] = 0
+                return SimpleNamespace(**values)
+            return stat
+
+        with mock.patch.object(Path, "lstat", root_owned), \
+             mock.patch.object(app.os, "getuid", return_value=501):
+            self.plan["app"]["path"] = str(installed)
+            self.plan["items"][0].update(path=str(installed), category="app", confidence="review",
+                                         **app.file_summary(installed))
+            self.save()
+            result, output = self.preview()
+        self.assertEqual(result, 0)
+        self.assertEqual(shlex.split(output.strip()), ["sudo", "rm", "-rf", "--", str(installed)])
 
 
 if __name__ == "__main__":

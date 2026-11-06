@@ -14,13 +14,16 @@ import subprocess
 import sys
 import time
 
-from deletion_guard import assert_safe_path, format_manual_command
+from deletion_guard import app_location_allowed, assert_safe_path, format_manual_command
 
 SCHEMA = 1
 USER_AREAS = {
     "Application Support": "app-data",
     "Caches": "cache",
     "Preferences": "preferences",
+    "Preferences/ByHost": "byhost-preferences",
+    "Cookies": "cookies",
+    "Application Scripts": "application-scripts",
     "Logs": "logs",
     "Containers": "sandbox",
     "Saved Application State": "saved-state",
@@ -143,8 +146,15 @@ def resolve_app(apps: list[dict], *, name: str | None, bundle_id: str | None) ->
 
 
 def residue_match(basename: str, bundle: str, aliases: list[str], category: str) -> tuple[str, str] | None:
+    if category == "byhost-preferences":
+        # Only an exact Bundle ID plus a host UUID, never a loose prefix match.
+        if re.fullmatch(re.escape(bundle) + r"\." + UUID_RE.pattern + r"\.plist",
+                        basename, re.IGNORECASE):
+            return ("high", "exact Bundle ID with host UUID")
+        return None
     base = basename
-    for ending in TRAILING:
+    endings = (".binarycookies",) if category == "cookies" else TRAILING
+    for ending in endings:
         if base.casefold().endswith(ending.casefold()):
             base = base[:-len(ending)]
             break
@@ -245,9 +255,7 @@ def allowed_source(path: Path, category: str, home: Path) -> bool:
     if os.path.realpath(path) != str(path):
         return False
     if category == "app":
-        return (path.suffix.lower() == ".app"
-                and (path.parent == Path("/Applications") or path.parent == home / "Applications")
-                and path != Path("/Applications"))
+        return app_location_allowed(path, home)
     if category == "sandbox" and UUID_RE.fullmatch(path.name):
         return path.parent == home / "Library" / "Containers"
     if category == "temp-cache":
@@ -266,6 +274,15 @@ def plan_digest(data: dict) -> str:
     unsigned = {key: value for key, value in data.items() if key != "plan_id"}
     raw = json.dumps(unsigned, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def selected_ids(raw: str) -> list[int]:
+    if not re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*)*", raw):
+        raise ValueError("Invalid selected IDs")
+    selected = [int(value) for value in raw.split(",")]
+    if len(selected) != len(set(selected)):
+        raise ValueError("Repeated ID is not allowed")
+    return selected
 
 
 def scan(args: argparse.Namespace) -> int:
@@ -396,9 +413,7 @@ def trash(args: argparse.Namespace) -> int:
         raise ValueError("Confirmation ID mismatch; obtain approval for this exact plan")
     if plan["app"]["bundle_id"].casefold().startswith("com.apple."):
         raise ValueError("Apple system bundles are review-only; refusing automated removal")
-    selected = [int(x) for x in args.ids.split(",")]
-    if len(selected) != len(set(selected)) or not selected:
-        raise ValueError("IDs must be a nonempty, unique comma-separated list")
+    selected = selected_ids(args.ids)
     items = {i["id"]: i for i in plan["items"]}
     paths = []
     for ident in selected:
@@ -458,11 +473,7 @@ def manual_preview(args: argparse.Namespace) -> int:
     bundle = plan["app"]["bundle_id"]
     if bundle.casefold().startswith("com.apple."):
         raise ValueError("Apple system bundles are excluded from manual commands")
-    if not re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*)*", args.ids):
-        raise ValueError("Invalid selected IDs")
-    selected = [int(v) for v in args.ids.split(",")]
-    if len(selected) != len(set(selected)):
-        raise ValueError("Repeated ID is not allowed")
+    selected = selected_ids(args.ids)
     items = {i["id"]: i for i in plan["items"]}
     checked = []
     for ident in selected:
@@ -506,15 +517,16 @@ def manual_preview(args: argparse.Namespace) -> int:
             evidence = residue_match(path.name, bundle, aliases, category)
             if evidence is None or evidence[0] != "high":
                 raise ValueError("Target name does not establish ownership: " + str(path))
-        checked.append(path)
+        checked.append((path, category == "app" and stat.st_uid == 0
+                        and stat.st_uid != os.getuid()))
     # Output is atomic: not a single deletion command is printed if any item
     # fails checks. This command NEVER invokes sudo or a shell.
     print("WARNING: The following commands permanently remove files (no Trash).",
           file=sys.stderr)
     print("Recheck immediately before user execution; permissions may still block sudo.",
           file=sys.stderr)
-    for path in checked:
-        print(format_manual_command(path))
+    for path, needs_sudo in checked:
+        print(format_manual_command(path, needs_sudo=needs_sudo))
     return 0
 
 
