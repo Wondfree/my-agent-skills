@@ -11,8 +11,12 @@ engine="faster_whisper"
 previous=""
 for arg in "$@"; do
   if [ "$previous" = "--engine" ]; then
+    engine="faster_whisper"
     if [ "$arg" = "whisper" ]; then engine="whisper"; fi
     previous=""
+  elif [ "${arg#--engine=}" != "$arg" ]; then
+    engine="faster_whisper"
+    if [ "${arg#--engine=}" = "whisper" ]; then engine="whisper"; fi
   elif [ "$arg" = "--engine" ]; then
     previous="--engine"
   fi
@@ -26,7 +30,7 @@ fallback_whisper=""
 old_ifs="$IFS"
 IFS=:
 for dir in $PATH; do
-  [ -n "$dir" ] || dir=.
+  [ -n "$dir" ] || continue
   for binary in python3 python; do
     candidate="$dir/$binary"
     [ -x "$candidate" ] && [ ! -d "$candidate" ] || continue
