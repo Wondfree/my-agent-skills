@@ -45,6 +45,101 @@ class PipelineTests(unittest.TestCase):
         (self.out / "audio.m4a").write_bytes(b"media")
         return ""
 
+    def test_part_is_preserved_in_both_manifests(self):
+        cases = [
+            (URL, 2, 2),
+            ("https://www.bilibili.com/video/BVexample?p=3&token=secret#section", None, 3),
+            ("https://www.bilibili.com/video/BVexample?p=3&token=secret", 2, 2),
+            ("https://example.com/video?p=3&token=secret", None, None),
+            ("https://www.bilibili.com/video/BVexample?p=invalid", None, None),
+        ]
+        for index, (url, explicit_part, expected_part) in enumerate(cases):
+            with self.subTest(url=url, explicit_part=explicit_part):
+                self.out = self.root / f"part-{index}"
+                self.args.out_dir = str(self.out)
+                self.args.url = url
+                self.args.part = explicit_part
+                self.recognize.return_value = iter(SEGMENTS)
+                self.run.side_effect = self.probe_and_download
+                self.capture()
+                for name in ("source.json", "transcript.json"):
+                    manifest = json.loads((self.out / name).read_text())
+                    self.assertEqual(manifest["part"], expected_part)
+                    self.assertNotIn("?", manifest["source"])
+                    self.assertNotIn("#", manifest["source"])
+                    self.assertNotIn("secret", (self.out / name).read_text())
+
+    def test_failed_capture_without_media_allows_plain_retry(self):
+        for stage in ("probe", "download"):
+            with self.subTest(stage=stage):
+                self.out = self.root / stage
+                self.args.out_dir = str(self.out)
+
+                def fail_acquisition(argv, **kwargs):
+                    if stage == "download" and "--dump-single-json" in argv:
+                        return self.probe_and_download(argv, **kwargs)
+                    raise RuntimeError("Acquisition failed")
+
+                self.run.side_effect = fail_acquisition
+                with self.assertRaisesRegex(RuntimeError, "Acquisition failed"):
+                    self.capture()
+                self.assertFalse((self.out / "capture_state.json").exists())
+                self.run.side_effect = self.probe_and_download
+                self.recognize.return_value = iter(SEGMENTS)
+                self.capture()
+                self.assertTrue((self.out / "source.json").is_file())
+
+    def test_failed_capture_keeps_state_when_partial_media_exists(self):
+        def fail_after_partial(argv, **kwargs):
+            (self.out / "audio.m4a.part").write_bytes(b"partial")
+            raise RuntimeError("Interrupted download")
+
+        self.run.side_effect = fail_after_partial
+        with self.assertRaisesRegex(RuntimeError, "Interrupted download"):
+            self.capture()
+        self.assertTrue((self.out / "capture_state.json").is_file())
+        self.args.url = OTHER_URL
+        self.args.resume = True
+        self.run.reset_mock()
+        with self.assertRaisesRegex(RuntimeError, "Resume source mismatch"):
+            self.capture()
+        self.run.assert_not_called()
+
+    def test_query_only_resume_mismatch_shows_distinct_hashes(self):
+        self.args.url = "https://www.bilibili.com/video/BVexample?p=2&token=secret"
+        pipeline.prepare_capture(self.out, self.args)
+        state = json.loads((self.out / "capture_state.json").read_text())
+        self.args.url = self.args.url.replace("p=2", "p=3")
+        self.args.resume = True
+        with self.assertRaisesRegex(RuntimeError, "Resume source mismatch") as raised:
+            self.capture()
+        message = str(raised.exception)
+        hashes = [part.split(")")[0] for part in message.split("hash ")[1:]]
+        self.assertEqual(len(hashes), 2)
+        self.assertEqual(hashes[0], state["source_sha256"][:12])
+        self.assertNotEqual(hashes[0], hashes[1])
+        self.assertNotIn("secret", message)
+        self.run.assert_not_called()
+
+    def test_missing_download_mentions_size_limit_only_when_configured(self):
+        self.run.return_value = ""
+        for limit in (None, "500M"):
+            for stream in ("audio", "video"):
+                with self.subTest(limit=limit, stream=stream):
+                    audio = self.out / "audio.m4a"
+                    if stream == "video":
+                        audio.touch()
+                    with self.assertRaises(RuntimeError) as raised:
+                        pipeline.download_url(URL, self.out, False, ["--no-playlist"], limit)
+                    message = str(raised.exception)
+                    self.assertIn(stream.capitalize(), message)
+                    if limit:
+                        self.assertIn("--max-filesize 500M", message)
+                        self.assertIn("may have skipped", message)
+                    else:
+                        self.assertNotIn("--max-filesize", message)
+                    audio.unlink(missing_ok=True)
+
     def test_existing_media_without_resume_fails_before_subprocess(self):
         for name in ("audio.m4a", "video.mp4", "video_only.mp4", "audio.m4a.part"):
             with self.subTest(name=name):

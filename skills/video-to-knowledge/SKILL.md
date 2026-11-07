@@ -41,7 +41,7 @@ VIDEO_FILE="<actual downloaded or copied video file>"
 "$SKILL_DIR/scripts/run.sh" verify --out-dir "$OUTPUT_DIR"
 ```
 
-`capture` runs the download/transcribe stage, not the AI editorial stages. Default transcription uses local Faster Whisper Base on CPU (int8); configure `--engine whisper` for OpenAI Whisper, `--model` for accuracy, `--language` for language (default: `zh`; use `--language auto` to detect), and `--audio-only` if the user does not want video. If screen verification is needed, keep the video. Use `--max-filesize` to set an optional per-download size limit; it is unset by default. Run `--help` for full options.
+`capture` runs the download/transcribe stage, not the AI editorial stages. Default transcription uses local Faster Whisper Base on CPU (int8); configure `--engine whisper` for OpenAI Whisper, `--model` for accuracy, `--language` for language (default: `zh`; use `--language auto` to detect), and `--audio-only` if the user does not want video. If screen verification is needed, keep the video. Use `--max-filesize` to set an optional per-download size limit; it is unset by default. All yt-dlp calls use `--ignore-config`, so user-configured proxies, cookies, and rate limits are not loaded. Run `--help` for full options.
 
 Automatic ASR output:
 - `video.mp4` (or `video.<source-ext>` for local sources) and `audio.*` when applicable;
@@ -50,7 +50,7 @@ Automatic ASR output:
 
 Use `--resume` to reuse partial media only when `capture_state.json` matches the same source and part; otherwise choose a fresh directory.
 
-The `--out-dir` parameter is mandatory so the caller chooses placement explicitly; generated media paths in `source.json` are relative to the output folder, so moving that folder does not invalidate the manifest. Published source and transcript JSON redact URL queries and fragments while retaining the video id separately. For local inputs, retain the original filename rather than its external absolute path. The video-to-knowledge output is complete **only after** the editorial and verification steps, not merely when `capture` succeeds.
+The `--out-dir` parameter is mandatory so the caller chooses placement explicitly; generated media paths in `source.json` are relative to the output folder, so moving that folder does not invalidate the manifest. Published source and transcript JSON redact URL queries and fragments while retaining the video id and selected part separately. For local inputs, retain the original filename rather than its external absolute path. The video-to-knowledge output is complete **only after** the editorial and verification steps, not merely when `capture` succeeds.
 
 ## Essential quality rules
 

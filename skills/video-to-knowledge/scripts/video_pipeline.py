@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import sys
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 
 def fail(message: str) -> None:
@@ -45,6 +45,22 @@ def redact_url(source: str | None) -> str | None:
         parts = urlsplit(source)
         return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
     return source
+
+
+def capture_part(args: argparse.Namespace) -> int | None:
+    """Keep the selected Bilibili page when its URL query is redacted."""
+    if args.part is not None:
+        return args.part
+    if args.url:
+        url = urlsplit(args.url)
+        host = url.hostname or ""
+        if host == "bilibili.com" or host.endswith(".bilibili.com"):
+            pages = parse_qs(url.query).get("p", [])
+            if len(pages) == 1 and re.fullmatch(r"[0-9]+", pages[0]):
+                page = int(pages[0])
+                if page > 0:
+                    return page
+    return None
 
 
 def source_json(src: str) -> dict:
@@ -140,6 +156,8 @@ def download_url(url: str, out: Path, audio_only: bool, part_flags: list[str],
               "--no-mtime", "--no-overwrites"]
     if max_filesize is not None:
         common.extend(["--max-filesize", max_filesize])
+    size_hint = (f" With --max-filesize {max_filesize}, yt-dlp may have skipped an "
+                 "oversized stream; check the limit and tool output." if max_filesize else "")
     # Download separately: Bilibili's separate audio stream often needs an independent retry.
     audio = unique_media(out, "audio")
     if audio is None:
@@ -147,7 +165,7 @@ def download_url(url: str, out: Path, audio_only: bool, part_flags: list[str],
              str(out / "audio.%(ext)s"), "--", url])
         audio = unique_media(out, "audio")
     if audio is None:
-        fail("Audio download did not produce a usable media file")
+        fail("Audio download did not produce a usable media file." + size_hint)
     if audio_only:
         return None, audio
 
@@ -161,7 +179,7 @@ def download_url(url: str, out: Path, audio_only: bool, part_flags: list[str],
              "-o", str(out / "video_only.%(ext)s"), "--", url])
         video_only = unique_media(out, "video_only")
     if video_only is None:
-        fail("Video stream download did not produce a usable file")
+        fail("Video stream download did not produce a usable file." + size_hint)
     video = out / "video.mp4"
     if video.exists():
         fail(f"Destination exists, will not overwrite: {video}")
@@ -236,12 +254,17 @@ def write_transcripts(out: Path, segments: list[dict], source: str, args: argpar
         "\n".join(timed) + "\n",
         "\n".join(srt) + "\n",
         json.dumps({"source": redact_url(source), "source_id": source_id,
-                    "model": args.model, "engine": args.engine,
+                    "part": capture_part(args), "model": args.model, "engine": args.engine,
                     "language": args.language, "segments": segments},
                    ensure_ascii=False, indent=2) + "\n",
     ]
     for path, payload in zip(paths, payloads):
         path.write_text(payload, encoding="utf-8")
+
+
+def existing_media(out: Path) -> list[Path]:
+    return [p for stem in ("audio", "video", "video_only")
+            for p in out.glob(stem + ".*") if p.is_file()]
 
 
 def prepare_capture(out: Path, args: argparse.Namespace) -> None:
@@ -252,8 +275,7 @@ def prepare_capture(out: Path, args: argparse.Namespace) -> None:
     state = {"source": redact_url(source) if args.url else Path(source).name,
              "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
              "part": args.part}
-    media = [p for stem in ("audio", "video", "video_only")
-             for p in out.glob(stem + ".*") if p.is_file()]
+    media = existing_media(out)
     state_path = out / "capture_state.json"
     if media and not args.resume:
         fail("Existing media in output directory; use --resume for the same source or a new directory")
@@ -261,8 +283,9 @@ def prepare_capture(out: Path, args: argparse.Namespace) -> None:
         previous = json.loads(state_path.read_text(encoding="utf-8"))
         if previous != state:
             fail(f"Resume source mismatch: previous {previous.get('source')!r} "
-                 f"(part {previous.get('part')}), current {state['source']!r} "
-                 f"(part {state['part']}). Use a new directory.")
+                 f"(part {previous.get('part')}, hash {previous.get('source_sha256', 'unknown')[:12]}), "
+                 f"current {state['source']!r} "
+                 f"(part {state['part']}, hash {state['source_sha256'][:12]}). Use a new directory.")
     elif args.resume and media:
         fail("Cannot resume existing media without capture_state.json; use a new directory")
     else:
@@ -282,6 +305,17 @@ def cmd_capture(args: argparse.Namespace) -> None:
     if (out / "source.json").exists():
         fail("Source manifest exists; will not overwrite raw evidence. Use a new directory.")
     prepare_capture(out, args)
+    try:
+        capture_prepared(args, out)
+    except Exception:
+        # Retain state for partial streams (including .part files), but allow a
+        # plain retry when acquisition failed before producing any media.
+        if not existing_media(out):
+            (out / "capture_state.json").unlink(missing_ok=True)
+        raise
+
+
+def capture_prepared(args: argparse.Namespace, out: Path) -> None:
     if args.url:
         source = args.url
         raw = source_json(source)
@@ -321,7 +355,8 @@ def cmd_capture(args: argparse.Namespace) -> None:
     if not segments:
         fail("Speech recognizer returned no text; no empty transcript was published")
     write_transcripts(out, segments, source, args, source_id=summary.get("id"))
-    meta = {"source": redact_url(source), "source_metadata": summary, "video": video.name if video else None,
+    meta = {"source": redact_url(source), "part": capture_part(args),
+            "source_metadata": summary, "video": video.name if video else None,
             "audio": audio.name, "duration_seconds": get_duration(video or audio),
             "engine": args.engine, "model": args.model, "language": args.language,
             "segment_count": len(segments), "last_speech_seconds": segments[-1]["end"],
