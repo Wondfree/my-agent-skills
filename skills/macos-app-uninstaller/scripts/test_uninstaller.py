@@ -20,6 +20,17 @@ spec.loader.exec_module(module)
 
 
 class MatchingTests(unittest.TestCase):
+    def test_cookies_require_binarycookies_suffix(self):
+        for name in ("com.example.Editor", "Example Editor", "com.example.Editor.plist",
+                     "com.example.Editor.binarycookies.backup"):
+            with self.subTest(name=name):
+                self.assertIsNone(module.residue_match(name, "com.example.Editor",
+                                                      ["Example Editor"], "cookies"))
+        for name in ("com.example.Editor.binarycookies", "com.example.Editor.BINARYCOOKIES"):
+            with self.subTest(name=name):
+                self.assertEqual(module.residue_match(name, "com.example.Editor",
+                                                     ["Example Editor"], "cookies")[0], "high")
+
     def test_exact_bundle_and_app_name(self):
         self.assertEqual(module.residue_match("com.example.Editor.plist", "com.example.Editor",
                                               ["Example Editor"], "preferences")[0], "high")
@@ -253,10 +264,31 @@ class TrashSafetyTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("fixture", encoding="utf8")
             paths.append(target)
+        (self.home / "Library" / "Cookies" / "com.example.Editor").write_text(
+            "unsupported cookie entry", encoding="utf8")
         self.scan_fixture(self.plan["app"])
         self.assertEqual({item["path"] for item in self.plan["items"]}, set(map(str, paths)))
         self.assertTrue(all(item["confidence"] == "high" for item in self.plan["items"]))
         self.verify_both_commands(paths)
+
+    def test_suffixless_cookie_refused_by_both_commands(self):
+        target = self.home / "Library" / "Cookies" / "com.example.Editor"
+        target.parent.mkdir(parents=True)
+        target.write_text("fixture", encoding="utf8")
+        self.plan["items"][0].update(path=str(target), category="cookies",
+                                     **module.file_summary(target))
+        self.save()
+        self.args.confirm = self.plan["plan_id"]
+        for command in (module.trash, module.manual_preview):
+            output = io.StringIO()
+            with self.subTest(command=command.__name__), \
+                 mock.patch.object(module.Path, "home", return_value=self.home), \
+                 mock.patch.object(module.subprocess, "run") as backend, \
+                 redirect_stdout(output), self.assertRaises(ValueError):
+                command(self.args)
+            backend.assert_not_called()
+            self.assertEqual(output.getvalue(), "")
+        self.assertTrue(target.exists())
 
     def test_byhost_requires_exact_bundle_and_uuid(self):
         for name in ("com.example.Editor.plist", "com.example.Editor.helper.plist",
