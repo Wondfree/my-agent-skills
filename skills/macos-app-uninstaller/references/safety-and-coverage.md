@@ -27,6 +27,7 @@ Only when the user requests manual terminal fallback after safe Trash fails:
 2. Use `manual-preview --manifest ... --confirm ... --ids ...`. Never hand-write, interpolate or infer deletion commands from scanner text or screenshots. Copy only complete output lines into one copyable shell block, one exact absolute path per line.
 3. The independent `scripts/deletion_guard.py` enforces strict path/category allowlists, canonical paths, no symlinks and protected-directory exclusions. The preview rechecks the manifest, ownership, identity and metadata; if any selected item fails, no commands are printed. Verified root-owned installed apps may be accepted, but ordinary review-only resources and incomplete scans are refused.
 4. Warn that user execution permanently deletes data outside Trash. Commands use `sudo` only for verified root-owned apps; permissions may still block them. The agent must **never execute** these commands or bypass the guard, TCC or SIP.
+5. If a user-run command reports permission denied, stop and report the remaining paths; partial deletion may already have occurred. Do not escalate to sudo, change permissions, or retry automatically.
 
 Never generate commands for guessed UUIDs, broad parent directories, another app's data, shared components, unapproved iCloud data or macOS Recent Documents. Shared Group Containers and excluded resources need further investigation, not a guard bypass.
 

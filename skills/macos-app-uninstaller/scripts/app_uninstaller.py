@@ -146,6 +146,8 @@ def resolve_app(apps: list[dict], *, name: str | None, bundle_id: str | None) ->
 
 
 def residue_match(basename: str, bundle: str, aliases: list[str], category: str) -> tuple[str, str] | None:
+    if category == "cookies" and not basename.casefold().endswith(".binarycookies"):
+        return None
     if category == "byhost-preferences":
         # Only an exact Bundle ID plus a host UUID, never a loose prefix match.
         if re.fullmatch(re.escape(bundle) + r"\." + UUID_RE.pattern + r"\.plist",
