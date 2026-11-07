@@ -33,6 +33,8 @@ jobs:
         run: python3 -B skills/git-lifecycle/scripts/test_hook_bridge.py
       - name: Test skill audit and CI validator regressions
         run: python3 -B skills/skill-reviewer/scripts/test_audit_skill.py
+      - name: Test video capture and verification (mocked tools)
+        run: python3 -B skills/video-to-knowledge/scripts/test_video_pipeline.py
       - name: Review static portability leads
         run: |
           for skill in skills/*/SKILL.md; do
