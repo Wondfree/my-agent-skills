@@ -6,7 +6,7 @@ A portable repository for **self-maintained** Agent Skills. The files in `skills
 
 | Skill | Purpose |
 |---|---|
-| [video-to-knowledge](skills/video-to-knowledge/SKILL.md) | Download/source videos, local Whisper transcription, evidence-checked tutorial/knowledge notes |
+| [video-to-knowledge](skills/video-to-knowledge/SKILL.md) | Download videos or transcribe local audio/video, with quality-based review and requested transcripts, summaries, or notes |
 | [skill-reviewer](skills/skill-reviewer/SKILL.md) | Read-only Skill review: boundaries, portability, safety, syntax, documented behavior |
 | [macos-app-uninstaller](skills/macos-app-uninstaller/SKILL.md) | Identify macOS app residues by name or Bundle ID; confirmed Trash-only removal |
 | [git-lifecycle](skills/git-lifecycle/SKILL.md) | Cross-project, read-only P0 audit of Git branches, worktrees and submodules; cleanup is not implemented |
