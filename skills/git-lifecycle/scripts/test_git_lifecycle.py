@@ -322,6 +322,21 @@ def main() -> None:
             assert "SSH_ASKPASS_REQUIRE" not in gl.safe_git_environment()
         assert gl.safe_remote_url("file://user:secret@localhost/repo.git") is None
 
+        # Remote verification must neutralize credential helpers on the
+        # ls-remote probe only; ordinary repository probes keep default config.
+        real_run = subprocess.run
+        argvs = []
+        def record_argv(args, **kwargs):
+            argvs.append(list(args))
+            return real_run(args, **kwargs)
+        with patch.object(gl.subprocess, "run", side_effect=record_argv):
+            probed = gl.remote_target(repo, "main", True)
+        assert probed["status"] == "VERIFIED", probed
+        ls_remote = [a for a in argvs if "ls-remote" in a]
+        assert len(ls_remote) == 1, ls_remote
+        assert "credential.helper=" in ls_remote[0], ls_remote[0]
+        assert all("credential.helper=" not in a for a in argvs if "ls-remote" not in a)
+
         # Even a successful branch enumeration must not hide broken-ref warnings.
         valid = gl.git(repo, "for-each-ref",
                        "--format=%(refname)%09%(objectname)", "refs/heads")
